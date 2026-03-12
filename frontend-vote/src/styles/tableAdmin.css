@@ -1,0 +1,101 @@
+.admin-container {
+  background: #f4f9ff;
+  padding: 25px;
+  border-radius: 12px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #0b6edc;
+  color: white;
+  padding: 15px 20px;
+  border-radius: 10px;
+}
+
+.btn-create {
+  background: #3cb371;
+  border: none;
+  padding: 8px 15px;
+  color: white;
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+table {
+  width: 100%;
+  margin-top: 15px;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+th {
+  background: #2c2c2c;
+  color: white;
+  padding: 12px;
+}
+
+td {
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-view {
+  background: #0b6edc;
+  color: white;
+}
+
+.btn-edit {
+  background: #f0ad4e;
+  color: white;
+}
+
+.btn-delete {
+  background: #d9534f;
+  color: white;
+}
+
+.badge {
+  padding: 5px 10px;
+  border-radius: 15px;
+  font-size: 12px;
+}
+
+.badge.active {
+  background: #0b6edc;
+  color: white;
+}
+
+.badge.inactive {
+  background: #999;
+  color: white;
+}
+
+.btn-back {
+  margin-top: 20px;
+  background: #555;
+  color: white;
+}
+
+.truncate {
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+

@@ -1,0 +1,21 @@
+.vote-page {
+  padding: 30px;
+  background: #2a2b6e;
+  min-height: 100vh;
+  color: white;
+}
+
+.candidat {
+  background: #3f41a5;
+  padding: 20px;
+  margin: 15px 0;
+  border-radius: 10px;
+}
+
+.candidat button {
+  margin-top: 10px;
+  padding: 10px 20px;
+  background: #00f2fe;
+  border: none;
+  border-radius: 6px;
+}

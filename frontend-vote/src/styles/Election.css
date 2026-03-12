@@ -1,0 +1,151 @@
+/* PAGE */
+.page {
+  min-height: 100vh;
+  background: #f5f7ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 15px;
+  font-family: 'Inter', sans-serif;
+}
+
+/* CARD */
+.card {
+  width: 100%;
+  max-width: 520px;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 20px 40px rgba(13, 44, 255, 0.15);
+  overflow: hidden;
+}
+
+/* HEADER */
+.card-header {
+  background: linear-gradient(135deg, #0d2cff, #3455ff);
+  padding: 28px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: white;
+}
+
+.header-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.card-header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+/* BODY */
+.card-body {
+  padding: 30px;
+}
+
+.card-body h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 25px;
+  color: #0f172a;
+}
+
+/* ERROR */
+.error {
+  background: #ffe4e6;
+  color: #be123c;
+  padding: 12px;
+  border-radius: 10px;
+  margin-bottom: 15px;
+  font-size: 14px;
+}
+
+/* FIELD */
+.field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f8f9ff;
+  border: 2px solid #dbe1ff;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  transition: 0.2s;
+}
+
+.field:focus-within {
+  border-color: #0d2cff;
+  background: #ffffff;
+}
+
+/* ICON */
+.field-icon {
+  width: 22px;
+  height: 22px;
+  color: #0d2cff;
+}
+
+/* INPUT */
+.field input,
+.field textarea {
+  border: none;
+  outline: none;
+  background: transparent;
+  width: 100%;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.field textarea {
+  resize: none;
+  min-height: 90px;
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
+  color: #94a3b8;
+}
+
+/* BUTTONS */
+.btn-primary {
+  width: 100%;
+  padding: 14px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg, #0d2cff, #3455ff);
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* CANCEL */
+.btn-cancel {
+  margin-top: 12px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  background: transparent;
+  border: 2px solid #dbe1ff;
+  color: #0d2cff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn-cancel:hover {
+  background: #e8ecff;
+}

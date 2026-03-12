@@ -1,0 +1,60 @@
+/* ElecteurForm.css */
+
+/* Container principal */
+.electeur-form-container {
+  max-width: 500px;
+  margin: 40px auto;
+  padding: 30px;
+  background-color: #e0f7ff; /* Bleu ciel très clair */
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  font-family: Arial, sans-serif;
+}
+
+/* Titre */
+.electeur-form-container h1 {
+  font-size: 24px;
+  font-weight: bold;
+  color: #0077b6; /* Bleu foncé */
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+/* Formulaire */
+.electeur-form-container form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* Champs input */
+.electeur-form-container input {
+  padding: 10px;
+  border: 1px solid #0077b6;
+  border-radius: 5px;
+  font-size: 16px;
+}
+
+/* Bouton */
+.electeur-form-container button {
+  padding: 12px;
+  background-color: #0077b6; /* Bleu foncé */
+  color: white;
+  font-size: 16px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.electeur-form-container button:hover {
+  background-color: #005f87;
+}
+
+.electeur-form-container select {
+  padding: 10px;
+  border: 1px solid #0077b6;
+  border-radius: 5px;
+  font-size: 16px;
+  background-color: white;
+}

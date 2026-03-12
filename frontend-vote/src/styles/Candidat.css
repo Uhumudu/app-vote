@@ -1,0 +1,311 @@
+/* Container général */
+.container {
+  max-width: 900px;
+  margin: 20px auto;
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  font-family: Arial, sans-serif;
+}
+
+/* Bandeau bleu */
+.header-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #1d4ed8;
+  color: white;
+  padding: 20px 16px;
+  border-radius: 12px 12px 0 0;
+  margin-bottom: 16px;
+}
+
+.header-banner h1 {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.btn-create {
+  background-color: #16a34a;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.btn-create:hover {
+  background-color: #15803d;
+}
+
+/* Table wrapper pour scroll horizontal */
+.table-wrapper {
+  overflow-x: auto;
+}
+
+/* Tableau des élections */
+.election-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px; /* force scroll sur petit écran */
+}
+
+.election-table th,
+.election-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+.election-table th {
+  background-color: #0b101b;
+  font-weight: 600;
+}
+
+.election-table tr:hover {
+  background-color: #f9fafb;
+}
+
+/* Boutons */
+button {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  margin-right: 6px;
+}
+.text {
+    color: #050758;
+}
+
+.btn-view {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.btn-view:hover {
+  background-color: #2563eb;
+}
+
+.btn-edit {
+  background-color: #f97316;
+  color: white;
+}
+
+.btn-edit:hover {
+  background-color: #ea580c;
+}
+
+.btn-delete {
+  background-color: #dc2626;
+  color: white;
+}
+
+.btn-delete:hover {
+  background-color: #b91c1c;
+}
+
+.disabled {
+  background-color: #9ca3af !important;
+  cursor: not-allowed;
+}
+
+/* Cartes mobile */
+.cards-wrapper {
+  display: none; /* caché par défaut sur grand écran */
+  flex-direction: column;
+  gap: 16px;
+}
+
+.election-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  background-color: #ffffff;
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #1d4ed8;
+  margin-bottom: 8px;
+}
+
+.card-period,
+.card-status {
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.card-actions {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Responsive pour petit écran */
+@media (max-width: 600px) {
+  .table-wrapper {
+    display: none; /* cache le tableau */
+  }
+
+  .cards-wrapper {
+    display: flex; /* affiche les cartes */
+  }
+
+  .header-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .btn-create {
+    width: 100%;
+    text-align: center;
+  }
+}
+/* Badge de statut */
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  color: white;
+}
+
+/* Couleurs selon le statut */
+.status-badge.en_cours {
+  background-color: #16a34a; /* vert */
+}
+
+.status-badge.planifiee {
+  background-color: #3b82f6; /* bleu */
+}
+
+.status-badge.terminee {
+  background-color: #dc2626; /* rouge */
+}
+
+/* Ajustement pour tableau et cartes */
+.election-table .status-badge {
+  display: inline-block;
+}
+
+.card-status .status-badge {
+  margin-left: 6px;
+}
+/* Actions dans le tableau */
+
+.actions-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.actions-top {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+
+.actions-cell .btn-delete {
+  margin-top: 4px;
+}
+.card-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-actions .actions-top {
+  display: flex;
+  gap: 8px;
+}
+
+
+
+
+
+
+.election-table th,
+.election-table td {
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+
+
+
+
+
+/* Badge de statut */
+.status-badge {
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: bold;
+  color: white;
+  text-transform: uppercase;
+}
+
+/* Élection en cours → VERT */
+.status-badge.en_cours {
+  background-color: #16a34a; /* vert */
+}
+
+/* Pas encore lancé → ORANGE */
+.status-badge.pas_encore_lance,
+.status-badge.a_venir {
+  background-color: #f97316; /* orange */
+}
+
+/* Élection terminée → ROUGE */
+.status-badge.termine {
+  background-color: #dc2626; /* rouge */
+}
+
+/* ===== CLASSEMENT & VAINQUEUR ===== */
+
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: bold;
+  color: white;
+}
+
+.badge.winner {
+  background-color: #16a34a; /* vert */
+}
+
+.badge.second {
+  background-color: #3b82f6; /* bleu */
+}
+
+.badge.third {
+  background-color: #f97316; /* orange */
+}
+
+/* Mise en valeur du gagnant */
+.winner-row {
+  background-color: #ecfdf5;
+}
+
+.winner-card {
+  border: 2px solid #16a34a;
+}
+
+
+
