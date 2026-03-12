@@ -1,6 +1,7 @@
 import "dotenv/config";
 console.log("MAIL_USER:", process.env.MAIL_USER);
 import express from "express";
+import { swaggerUi, swaggerSpec } from "./config/swagger.js";
 import cors from "cors";
 import http from "http";
 import { Server } from "socket.io";
@@ -42,8 +43,11 @@ app.use("/api",               electeurRoutes);
 app.use("/api",               resultatRoutes);
 app.use("/api",               dashboardRoutes);
 app.use("/api",               dashsuperRoutes);
-app.use("/api",               statistiquesRoutes); // ✅ ajouté
+app.use("/api",               statistiquesRoutes); 
 
+
+
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.get("/", (req, res) => {
   res.send("🚀 API eVote fonctionne !");
 });
