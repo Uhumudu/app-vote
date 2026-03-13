@@ -8,7 +8,7 @@ const router = express.Router();
 // GET /api/elections/:electionId/resultats  → résultats d'une élection
 // GET /api/resultats                        → résultats de toutes les élections de l'admin
 
-router.get("/elections/:electionId/resultats", verifyToken, isAdmin, getResultatsElection);
+router.get("/elections/:electionId/resultats", verifyToken, getResultatsElection);
 router.get("/resultats",                       verifyToken, isAdmin, getResultatsAdmin);
 
 export default router;

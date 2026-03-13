@@ -17,7 +17,8 @@ import electeurRoutes      from "./routes/electeur.routes.js";
 import resultatRoutes      from "./routes/resultat.routes.js";
 import dashboardRoutes     from "./routes/dashboard.routes.js";
 import dashsuperRoutes     from "./routes/dashsuper.routes.js";
-import statistiquesRoutes  from "./routes/statistiques.routes.js"; // ✅ ajouté
+import statistiquesRoutes  from "./routes/statistiques.routes.js"; 
+import uploadRoutes from "./routes/upload.routes.js";
 
 // 🔹 ESModule dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -44,6 +45,7 @@ app.use("/api",               resultatRoutes);
 app.use("/api",               dashboardRoutes);
 app.use("/api",               dashsuperRoutes);
 app.use("/api",               statistiquesRoutes); 
+app.use("/api", uploadRoutes);
 
 
 

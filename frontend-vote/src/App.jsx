@@ -32,6 +32,7 @@ import ModifierCandidat from "./pages/admin/adminelection/ModifierCandidat";
 import Electeurs        from "./pages/admin/adminelection/electeurs";
 import AjouterElecteur  from "./pages/admin/adminelection/AjouterElecteur";
 import ModifierElecteur from "./pages/admin/adminelection/ModifierElecteur";
+import ResultatsElecteur from "./pages/elcteurP/ResultatsElecteur";
 
 // ─── Électeur (votant) ────────────────────────────────────────────────────────
 import DashboardElecteur from "./pages/elcteurP/DashboardElecteur";
@@ -92,8 +93,9 @@ function App() {
 
           {/* ── Électeur (votant) ─────────────────────────────────────────── */}
           <Route path="/DashboardElecteur"                element={<DashboardElecteur />} />
-          <Route path="/electeur/voter/:electionId"       element={<VotePage />} />          {/* ✅ avec param */}
-          <Route path="/electeur/resultats/:electionId"   element={<Resultats />} />         {/* ✅ résultats électeur */}
+          <Route path="/electeur/voter/:electionId"       element={<VotePage />} />          
+          {/* <Route path="/electeur/resultats/:electionId"   element={<Resultats />} />  */}
+          <Route path="/electeur/resultats/:electionId" element={<ResultatsElecteur />} />       
 
         </Routes>
 
