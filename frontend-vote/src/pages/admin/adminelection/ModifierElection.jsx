@@ -4,59 +4,58 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   FiHome, FiUsers, FiBarChart2, FiSettings, FiLogOut,
   FiCalendar, FiUserCheck, FiArrowLeft, FiEdit3,
-  FiAlertCircle, FiCheckCircle, FiClock, FiType, FiAlignLeft, FiList
+  FiAlertCircle, FiCheckCircle, FiClock, FiType,
+  FiAlignLeft, FiList, FiGrid
 } from "react-icons/fi";
+import { motion, AnimatePresence } from "framer-motion";
 import api from "../../../services/api";
 
 export default function ModifierElection() {
-  const { id } = useParams();
-  const navigate = useNavigate();
+  const { id }     = useParams();
+  const navigate   = useNavigate();
 
   const [formData, setFormData] = useState({
-    title: "",
+    title:       "",
     description: "",
-    type: "UNINOMINAL",
-    startDate: "",
-    endDate: "",
+    type:        "UNINOMINAL",
+    startDate:   "",
+    endDate:     "",
+    nbSieges:    "",
   });
-  const [status, setStatus] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [status,      setStatus]      = useState("");
+  const [loading,     setLoading]     = useState(true);
+  const [saving,      setSaving]      = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [error,       setError]       = useState("");
 
-  // ===== Récupérer l'élection pour pré-remplissage =====
+  // ===== Charger l'élection =====
   useEffect(() => {
     const fetchElection = async () => {
       try {
-        const token = localStorage.getItem("token");
-        const res = await api.get(`/elections/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const e = res.data;
-
-        // Format pour datetime-local : "YYYY-MM-DDTHH:MM"
-        const startDate = e.date_debut ? e.date_debut.slice(0, 16) : "";
-        const endDate = e.date_fin ? e.date_fin.slice(0, 16) : "";
+        const res = await api.get(`/elections/${id}`);
+        const e   = res.data;
 
         setFormData({
-          title: e.titre,
-          description: e.description,
-          type: e.type,
-          startDate,
-          endDate,
+          title:       e.titre       || "",
+          description: e.description || "",
+          type:        e.type        || "UNINOMINAL",
+          startDate:   e.date_debut  ? e.date_debut.slice(0, 16) : "",
+          endDate:     e.date_fin    ? e.date_fin.slice(0, 16)   : "",
+          nbSieges:    e.nb_sieges   || "",
         });
 
         setStatus(e.statut);
-        setLoading(false);
-      } catch (error) {
-        console.error("Erreur lors du fetch de l'élection:", error.response?.data || error.message);
+      } catch (err) {
+        console.error("Erreur fetch élection:", err.response?.data || err.message);
+        setError("Impossible de charger l'élection.");
+      } finally {
         setLoading(false);
       }
     };
     fetchElection();
   }, [id]);
 
-  const isEditable = status !== "EN_COURS" && status !== "TERMINEE";
+  const isEditable = !["EN_COURS", "TERMINEE"].includes(status);
 
   const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -64,75 +63,89 @@ export default function ModifierElection() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isEditable) return;
+
+    // Validation nb_sieges si type LISTE
+    if (formData.type === "LISTE" && (!formData.nbSieges || formData.nbSieges < 1)) {
+      setError("Le nombre de sièges est obligatoire pour un scrutin de liste.");
+      return;
+    }
+
+    setError("");
     setSaving(true);
+
     try {
-      const token = localStorage.getItem("token");
-      await api.put(`/elections/${id}`, {
-        titre: formData.title,
+      await api.put(`/elections/update/${id}`, {
+        titre:       formData.title,
         description: formData.description,
-        date_debut: formData.startDate,
-        date_fin: formData.endDate,
-        type: formData.type,
-      }, {
-        headers: { Authorization: `Bearer ${token}` },
+        date_debut:  formData.startDate,
+        date_fin:    formData.endDate,
+        type:        formData.type,
+        nb_sieges:   formData.type === "LISTE" ? parseInt(formData.nbSieges) : null,
       });
+
       setSaveSuccess(true);
       setTimeout(() => navigate("/admin/adminelection/ElectionPage"), 1500);
-    } catch (error) {
-      console.error("Erreur lors de la modification:", error.response?.data || error.message);
-      alert("Erreur lors de la modification de l'élection");
+    } catch (err) {
+      console.error("Erreur modification:", err.response?.data || err.message);
+      setError(err.response?.data?.message || "Erreur lors de la modification.");
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-100 via-indigo-200 to-indigo-300">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
-          <p className="text-indigo-600 text-sm font-medium">Chargement…</p>
-        </div>
+  // ===== LOADING =====
+  if (loading) return (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-100 via-indigo-200 to-indigo-300">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+        <p className="text-indigo-600 text-sm font-medium">Chargement…</p>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-indigo-100 via-indigo-200 to-indigo-300">
 
-      {/* Sidebar */}
+      {/* ===== SIDEBAR ===== */}
       <aside className="w-64 bg-white/80 backdrop-blur border-r border-indigo-100 p-6 flex flex-col">
         <h1 className="text-2xl font-bold mb-10 text-indigo-700">🗳 eVote – Admin</h1>
         <nav className="flex-1 space-y-1">
-          <Link to="/adminElectionDashboard" className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors text-sm font-medium">
+          <Link to="/adminElectionDashboard"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors text-sm font-medium">
             <FiHome size={16} /> Tableau de bord
           </Link>
-          <Link to="/admin/adminelection/ElectionPage" className="flex items-center gap-3 px-4 py-3 rounded-xl bg-indigo-100 text-indigo-700 font-semibold text-sm">
+          <Link to="/admin/adminelection/ElectionPage"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-indigo-100 text-indigo-700 font-semibold text-sm">
             <FiCalendar size={16} /> Mes élections
           </Link>
-          <Link to="/admin/adminelection/candidats" className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors text-sm font-medium">
+          <Link to="/admin/adminelection/candidats"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors text-sm font-medium">
             <FiUsers size={16} /> Candidats
           </Link>
-          <Link to={`/admin/adminelection/electeurs/${id}`} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors text-sm font-medium">
+          <Link to={`/admin/adminelection/electeurs/${id}`}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors text-sm font-medium">
             <FiUserCheck size={16} /> Électeurs
           </Link>
-          <Link to="/admin/adminelection/resultats" className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors text-sm font-medium">
+          <Link to="/admin/adminelection/resultats"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors text-sm font-medium">
             <FiBarChart2 size={16} /> Résultats
           </Link>
         </nav>
-
         <div className="space-y-1 mt-6 pt-6 border-t border-indigo-100">
-          <Link to="/settings" className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 transition-colors text-sm font-medium">
+          <Link to="/settings"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 transition-colors text-sm font-medium">
             <FiSettings size={16} /> Paramètres
           </Link>
-          <Link to="/logout" className="flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 transition-colors text-sm font-medium">
+          <Link to="/logout"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 transition-colors text-sm font-medium">
             <FiLogOut size={16} /> Déconnexion
           </Link>
         </div>
       </aside>
 
-      {/* Main content */}
+      {/* ===== MAIN ===== */}
       <main className="flex-1 p-8">
+
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
@@ -152,7 +165,7 @@ export default function ModifierElection() {
           </Link>
         </div>
 
-        {/* Statut */}
+        {/* Badge statut */}
         {status && (
           <div className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium mb-6 border ${
             isEditable
@@ -166,8 +179,18 @@ export default function ModifierElection() {
           </div>
         )}
 
-        {/* Formulaire */}
-        <form onSubmit={handleSubmit} className="space-y-5 max-w-3xl bg-indigo-50 backdrop-blur p-8 rounded-2xl shadow-sm border border-indigo-200">
+        {/* Erreur */}
+        {error && (
+          <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium mb-6 bg-red-50 text-red-700 border border-red-200">
+            <FiAlertCircle size={16} /> {error}
+          </div>
+        )}
+
+        {/* ===== FORMULAIRE ===== */}
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-5 max-w-3xl bg-indigo-50 backdrop-blur p-8 rounded-2xl shadow-sm border border-indigo-200"
+        >
 
           {/* Titre */}
           <div className="space-y-1.5">
@@ -203,6 +226,8 @@ export default function ModifierElection() {
 
           {/* Type + Dates */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+            {/* Type */}
             <div className="space-y-1.5">
               <label className="flex items-center gap-1.5 text-xs font-semibold text-indigo-500 uppercase tracking-wider">
                 <FiList size={12} /> Type de scrutin
@@ -220,6 +245,7 @@ export default function ModifierElection() {
               </select>
             </div>
 
+            {/* Date début */}
             <div className="space-y-1.5">
               <label className="flex items-center gap-1.5 text-xs font-semibold text-indigo-500 uppercase tracking-wider">
                 <FiClock size={12} /> Date et heure de début
@@ -234,6 +260,7 @@ export default function ModifierElection() {
               />
             </div>
 
+            {/* Date fin */}
             <div className="space-y-1.5">
               <label className="flex items-center gap-1.5 text-xs font-semibold text-indigo-500 uppercase tracking-wider">
                 <FiClock size={12} /> Date et heure de fin
@@ -249,7 +276,40 @@ export default function ModifierElection() {
             </div>
           </div>
 
-          {/* Actions */}
+          {/* ✅ Nombre de sièges — visible uniquement si type LISTE */}
+          <AnimatePresence>
+            {formData.type === "LISTE" && (
+              <motion.div
+                key="nb-sieges"
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-1.5"
+              >
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-indigo-500 uppercase tracking-wider">
+                  <FiGrid size={12} /> Nombre de sièges à pourvoir
+                </label>
+                <input
+                  type="number"
+                  name="nbSieges"
+                  value={formData.nbSieges}
+                  onChange={handleChange}
+                  disabled={!isEditable}
+                  min="1"
+                  max="999"
+                  required
+                  placeholder="Ex : 29"
+                  className="w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-gray-800 text-sm placeholder-gray-300 focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition disabled:opacity-50 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                />
+                <p className="text-xs text-indigo-400 italic">
+                  La moitié des sièges sera attribuée à la liste arrivée en tête, le reste réparti proportionnellement.
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ===== ACTIONS ===== */}
           {isEditable && (
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
               <Link
@@ -306,6 +366,50 @@ export default function ModifierElection() {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // // src/pages/adminElection/ModifierElection.jsx
 // import React, { useState, useEffect } from "react";
 // import { useParams, useNavigate, Link } from "react-router-dom";
@@ -332,6 +436,7 @@ export default function ModifierElection() {
 //   const [saving, setSaving] = useState(false);
 //   const [saveSuccess, setSaveSuccess] = useState(false);
 
+//   // ===== Récupérer l'élection pour pré-remplissage =====
 //   useEffect(() => {
 //     const fetchElection = async () => {
 //       try {
@@ -340,13 +445,19 @@ export default function ModifierElection() {
 //           headers: { Authorization: `Bearer ${token}` },
 //         });
 //         const e = res.data;
+
+//         // Format pour datetime-local : "YYYY-MM-DDTHH:MM"
+//         const startDate = e.date_debut ? e.date_debut.slice(0, 16) : "";
+//         const endDate = e.date_fin ? e.date_fin.slice(0, 16) : "";
+
 //         setFormData({
 //           title: e.titre,
 //           description: e.description,
 //           type: e.type,
-//           startDate: e.date_debut ? e.date_debut.slice(0, 16) : "",
-//           endDate: e.date_fin ? e.date_fin.slice(0, 16) : "",
+//           startDate,
+//           endDate,
 //         });
+
 //         setStatus(e.statut);
 //         setLoading(false);
 //       } catch (error) {
@@ -401,7 +512,7 @@ export default function ModifierElection() {
 //   return (
 //     <div className="flex min-h-screen bg-gradient-to-br from-indigo-100 via-indigo-200 to-indigo-300">
 
-//       {/* ===== SIDEBAR — identique à l'original ===== */}
+//       {/* Sidebar */}
 //       <aside className="w-64 bg-white/80 backdrop-blur border-r border-indigo-100 p-6 flex flex-col">
 //         <h1 className="text-2xl font-bold mb-10 text-indigo-700">🗳 eVote – Admin</h1>
 //         <nav className="flex-1 space-y-1">
@@ -432,9 +543,8 @@ export default function ModifierElection() {
 //         </div>
 //       </aside>
 
-//       {/* ===== CONTENU PRINCIPAL ===== */}
+//       {/* Main content */}
 //       <main className="flex-1 p-8">
-
 //         {/* Header */}
 //         <div className="flex justify-between items-center mb-6">
 //           <div className="flex items-center gap-3">
@@ -454,7 +564,7 @@ export default function ModifierElection() {
 //           </Link>
 //         </div>
 
-//         {/* ===== Bannière de statut ===== */}
+//         {/* Statut */}
 //         {status && (
 //           <div className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium mb-6 border ${
 //             isEditable
@@ -468,7 +578,7 @@ export default function ModifierElection() {
 //           </div>
 //         )}
 
-//         {/* ===== Formulaire ===== */}
+//         {/* Formulaire */}
 //         <form onSubmit={handleSubmit} className="space-y-5 max-w-3xl bg-indigo-50 backdrop-blur p-8 rounded-2xl shadow-sm border border-indigo-200">
 
 //           {/* Titre */}
@@ -524,7 +634,7 @@ export default function ModifierElection() {
 
 //             <div className="space-y-1.5">
 //               <label className="flex items-center gap-1.5 text-xs font-semibold text-indigo-500 uppercase tracking-wider">
-//                 <FiClock size={12} /> Date de début
+//                 <FiClock size={12} /> Date et heure de début
 //               </label>
 //               <input
 //                 type="datetime-local"
@@ -538,7 +648,7 @@ export default function ModifierElection() {
 
 //             <div className="space-y-1.5">
 //               <label className="flex items-center gap-1.5 text-xs font-semibold text-indigo-500 uppercase tracking-wider">
-//                 <FiClock size={12} /> Date de fin
+//                 <FiClock size={12} /> Date et heure de fin
 //               </label>
 //               <input
 //                 type="datetime-local"
@@ -551,7 +661,7 @@ export default function ModifierElection() {
 //             </div>
 //           </div>
 
-//           {/* ===== Actions ===== */}
+//           {/* Actions */}
 //           {isEditable && (
 //             <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
 //               <Link
@@ -591,5 +701,4 @@ export default function ModifierElection() {
 //     </div>
 //   );
 // }
-
 

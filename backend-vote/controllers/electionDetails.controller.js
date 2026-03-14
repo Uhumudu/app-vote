@@ -1,3 +1,4 @@
+
 // backend/controllers/electionDetails.controller.js
 import { pool } from "../config/db.js";
 

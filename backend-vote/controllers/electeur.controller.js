@@ -1,10 +1,3 @@
-
-
-
-
-
-
-
 // backend/controllers/electeur.controller.js
 import { pool } from "../config/db.js";
 import bcrypt from "bcryptjs";
@@ -344,6 +337,7 @@ export const getElecteurElections = async (req, res) => {
       SELECT e.id_election, e.titre, e.statut,
              e.date_debut, e.date_fin,
              s.type,
+             s.tour_actuel,
              ee.a_vote
       FROM election e
       JOIN electeur_election ee ON e.id_election = ee.election_id
@@ -370,6 +364,7 @@ export const getElectionDetail = async (req, res) => {
       SELECT e.id_election, e.titre, e.statut,
              e.date_debut, e.date_fin,
              s.type,
+             s.tour_actuel,
              ee.a_vote
       FROM election e
       JOIN electeur_election ee ON e.id_election = ee.election_id
@@ -423,8 +418,10 @@ export const getListesElection = async (req, res) => {
     const { electionId } = req.params;
     const electeurId     = req.user.id;
 
+    // Vérifier inscription
     const [check] = await pool.execute(
-      `SELECT electeur_id FROM electeur_election WHERE electeur_id = ? AND election_id = ?`,
+      `SELECT electeur_id FROM electeur_election
+       WHERE electeur_id = ? AND election_id = ?`,
       [electeurId, electionId]
     );
 
@@ -432,24 +429,65 @@ export const getListesElection = async (req, res) => {
       return res.status(403).json({ message: "Accès refusé" });
     }
 
-    const [rows] = await pool.execute(`
-      SELECT l.liste_id, l.nom,
-             COUNT(c.id_candidat) AS nb_candidats
-      FROM liste l
-      LEFT JOIN candidat c ON c.liste_id = l.liste_id
-      WHERE l.election_id = ?
-      GROUP BY l.liste_id
-      ORDER BY l.nom ASC
-    `, [electionId]);
+    // Récupérer le tour actuel (avec fallback à 1 si colonne absente)
+    const [scrutinRows] = await pool.execute(
+      `SELECT tour_actuel FROM scrutin WHERE election_id = ?`,
+      [electionId]
+    );
+    const tourActuel = scrutinRows[0]?.tour_actuel ?? 1;
 
+    // Vérifier si la table liste_tour existe
+    const [tableCheck] = await pool.execute(
+      `SELECT COUNT(*) AS cnt
+       FROM information_schema.tables
+       WHERE table_schema = DATABASE()
+       AND table_name = 'liste_tour'`
+    );
+
+    let rows;
+
+    if (tableCheck[0].cnt > 0) {
+      // ✅ liste_tour existe → ne retourner que les listes qualifiées pour ce tour
+      const [listeRows] = await pool.execute(`
+        SELECT l.id_liste, l.nom,
+               COUNT(c.id_candidat) AS nb_candidats
+        FROM liste l
+        LEFT JOIN candidat c ON c.liste_id = l.id_liste
+        JOIN liste_tour lt   ON lt.liste_id    = l.id_liste
+                             AND lt.election_id = l.election_id
+                             AND lt.tour        = ?
+                             AND lt.statut      = 'qualifiee'
+        WHERE l.election_id = ?
+        GROUP BY l.id_liste, l.nom
+        ORDER BY l.nom ASC
+      `, [tourActuel, electionId]);
+
+      rows = listeRows;
+    } else {
+      // ⚠️ liste_tour n'existe pas encore → retourner toutes les listes
+      const [listeRows] = await pool.execute(`
+        SELECT l.id_liste, l.nom,
+               COUNT(c.id_candidat) AS nb_candidats
+        FROM liste l
+        LEFT JOIN candidat c ON c.liste_id = l.id_liste
+        WHERE l.election_id = ?
+        GROUP BY l.id_liste, l.nom
+        ORDER BY l.nom ASC
+      `, [electionId]);
+
+      rows = listeRows;
+    }
+
+    console.log("✅ Listes trouvées:", rows.length, "— election", electionId, "— tour", tourActuel);
     res.json(rows);
+
   } catch (error) {
     console.error("❌ Erreur getListesElection:", error.message);
     res.status(500).json({ error: error.message });
   }
 };
 
-// ================= VOTER (ELECTEUR) =================
+// ================= VOTER UNINOMINAL / BINOMINAL (ELECTEUR) =================
 export const voterElection = async (req, res) => {
   try {
     const { electionId }   = req.params;
@@ -469,6 +507,8 @@ export const voterElection = async (req, res) => {
       return res.status(404).json({ message: "Élection introuvable" });
     if (elecRows[0].statut !== "EN_COURS")
       return res.status(403).json({ message: "L'élection n'est pas en cours" });
+    if (elecRows[0].type === "LISTE")
+      return res.status(400).json({ message: "Utilisez la route /voter-liste pour ce scrutin" });
 
     // 2. Vérifier inscription + déjà voté
     const [alreadyVoted] = await pool.execute(
@@ -497,7 +537,7 @@ export const voterElection = async (req, res) => {
       [electeurId, electionId]
     );
 
-    // 5. ✅ Envoyer l'e-mail de confirmation (non bloquant)
+    // 5. Envoyer l'e-mail de confirmation (non bloquant)
     try {
       const [userRows] = await pool.execute(
         `SELECT nom, prenom, email FROM utilisateur WHERE id = ?`,
@@ -513,7 +553,6 @@ export const voterElection = async (req, res) => {
           hour:   "2-digit",
           minute: "2-digit",
         });
-
         await sendVoteConfirmationEmail({
           email,
           nom,
@@ -523,7 +562,6 @@ export const voterElection = async (req, res) => {
         });
       }
     } catch (mailErr) {
-      // L'échec de l'email ne bloque PAS la confirmation du vote
       console.error("⚠️ Email de confirmation non envoyé :", mailErr.message);
     }
 
