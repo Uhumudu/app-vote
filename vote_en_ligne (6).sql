@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Hôte : 127.0.0.1:3306
--- Généré le : ven. 13 mars 2026 à 12:32
+-- Généré le : dim. 15 mars 2026 à 16:07
 -- Version du serveur : 8.0.31
 -- Version de PHP : 8.0.26
 
@@ -30,9 +30,9 @@ SET time_zone = "+00:00";
 DROP TABLE IF EXISTS `candidat`;
 CREATE TABLE IF NOT EXISTS `candidat` (
   `id_candidat` int NOT NULL AUTO_INCREMENT,
-  `nom` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `parti` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `photo` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `nom` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `parti` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `photo` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `election_id` int NOT NULL,
   `liste_id` int DEFAULT NULL,
   `age` int DEFAULT NULL,
@@ -102,12 +102,15 @@ INSERT INTO `electeur_election` (`electeur_id`, `election_id`, `a_vote`) VALUES
 DROP TABLE IF EXISTS `election`;
 CREATE TABLE IF NOT EXISTS `election` (
   `id_election` int NOT NULL AUTO_INCREMENT,
-  `titre` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `description` text COLLATE utf8mb4_unicode_ci,
+  `titre` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `date_debut` datetime NOT NULL,
   `date_fin` datetime NOT NULL,
-  `statut` enum('EN_ATTENTE','APPROUVEE','EN_COURS','TERMINEE','SUSPENDUE') COLLATE utf8mb4_unicode_ci DEFAULT 'EN_ATTENTE',
+  `statut` enum('EN_ATTENTE','APPROUVEE','EN_COURS','TERMINEE','SUSPENDUE') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'EN_ATTENTE',
   `admin_id` int NOT NULL,
+  `tour_courant` int DEFAULT '1',
+  `nb_sieges` int DEFAULT '0',
+  `duree_tour_minutes` int DEFAULT '1440',
   PRIMARY KEY (`id_election`),
   KEY `admin_id` (`admin_id`)
 ) ENGINE=MyISAM AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -116,16 +119,33 @@ CREATE TABLE IF NOT EXISTS `election` (
 -- Déchargement des données de la table `election`
 --
 
-INSERT INTO `election` (`id_election`, `titre`, `description`, `date_debut`, `date_fin`, `statut`, `admin_id`) VALUES
-(3, 'elec', 'AZERTYU', '2026-03-05 11:00:00', '2026-03-07 11:00:00', 'TERMINEE', 27),
-(4, 'Election juge general', 'IL s\'agit de voté le juge principal et son vice', '2026-03-06 12:00:00', '2026-03-09 21:00:00', 'EN_ATTENTE', 28),
-(5, 'Vote de mon mari', 'yes voter mon mari', '2026-03-08 12:00:00', '2026-03-08 21:00:00', 'TERMINEE', 29),
-(6, 'Election du minsboys', 'Vots un bureau', '2026-03-09 11:00:00', '2026-03-11 13:00:00', 'EN_ATTENTE', 30),
-(7, 'election ISMA', 'whaouuuuu c\'est bien', '2026-03-15 11:00:00', '2026-03-16 12:00:00', 'APPROUVEE', 31),
-(8, 'election DOCTOR', 'Elu le docteur principal de l\'hopital central', '2026-03-15 12:00:00', '2026-03-16 13:00:00', 'APPROUVEE', 31),
-(9, 'election BOSSTORI', 'MMMMMMMMMMMMMMMMMMMMMMMMmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm', '2026-03-12 10:40:00', '2026-03-12 10:55:00', 'TERMINEE', 37),
-(10, 'Elire Meilleur milieu', 'election du milieu le plus prolifique de tout les temps', '2026-03-12 11:45:00', '2026-03-12 12:00:00', 'TERMINEE', 37),
-(11, 'Election messi ou ronaldo ', 'voter le joueur le plus fort entre messi et ronaldo', '2026-03-12 13:03:00', '2026-03-12 14:00:00', 'TERMINEE', 37);
+INSERT INTO `election` (`id_election`, `titre`, `description`, `date_debut`, `date_fin`, `statut`, `admin_id`, `tour_courant`, `nb_sieges`, `duree_tour_minutes`) VALUES
+(3, 'elec', 'AZERTYU', '2026-03-05 11:00:00', '2026-03-07 11:00:00', 'TERMINEE', 27, 1, 0, 1440),
+(4, 'Election juge general', 'IL s\'agit de voté le juge principal et son vice', '2026-03-06 12:00:00', '2026-03-09 21:00:00', 'EN_ATTENTE', 28, 1, 0, 1440),
+(5, 'Vote de mon mari', 'yes voter mon mari', '2026-03-08 12:00:00', '2026-03-08 21:00:00', 'TERMINEE', 29, 1, 0, 1440),
+(6, 'Election du minsboys', 'Vots un bureau', '2026-03-09 11:00:00', '2026-03-11 13:00:00', 'EN_ATTENTE', 30, 1, 0, 1440),
+(7, 'election ISMA', 'whaouuuuu c\'est bien', '2026-03-15 11:00:00', '2026-03-16 12:00:00', 'EN_COURS', 31, 1, 0, 1440),
+(8, 'election DOCTOR', 'Elu le docteur principal de l\'hopital central', '2026-03-15 12:00:00', '2026-03-16 13:00:00', 'EN_COURS', 31, 1, 0, 1440),
+(9, 'election BOSSTORI', 'MMMMMMMMMMMMMMMMMMMMMMMMmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm', '2026-03-12 10:40:00', '2026-03-12 10:55:00', 'TERMINEE', 37, 1, 0, 1440),
+(10, 'Elire Meilleur milieu', 'election du milieu le plus prolifique de tout les temps', '2026-03-12 11:45:00', '2026-03-12 12:00:00', 'TERMINEE', 37, 1, 0, 1440),
+(11, 'Election messi ou ronaldo ', 'voter le joueur le plus fort entre messi et ronaldo', '2026-03-12 13:03:00', '2026-03-12 14:00:00', 'TERMINEE', 37, 1, 0, 1440);
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `fusion_liste`
+--
+
+DROP TABLE IF EXISTS `fusion_liste`;
+CREATE TABLE IF NOT EXISTS `fusion_liste` (
+  `id_fusion` int NOT NULL AUTO_INCREMENT,
+  `election_id` int NOT NULL,
+  `tour` int NOT NULL,
+  `liste_source` int NOT NULL,
+  `liste_cible` int NOT NULL,
+  PRIMARY KEY (`id_fusion`),
+  KEY `election_id` (`election_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -136,7 +156,7 @@ INSERT INTO `election` (`id_election`, `titre`, `description`, `date_debut`, `da
 DROP TABLE IF EXISTS `liste`;
 CREATE TABLE IF NOT EXISTS `liste` (
   `id_liste` int NOT NULL AUTO_INCREMENT,
-  `nom` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `nom` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `election_id` int NOT NULL,
   PRIMARY KEY (`id_liste`),
   KEY `election_id` (`election_id`)
@@ -160,8 +180,8 @@ DROP TABLE IF EXISTS `notification`;
 CREATE TABLE IF NOT EXISTS `notification` (
   `id_notification` int NOT NULL AUTO_INCREMENT,
   `utilisateur_id` int NOT NULL,
-  `type` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `message` text COLLATE utf8mb4_unicode_ci,
+  `type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `message` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `date_envoi` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id_notification`),
   KEY `utilisateur_id` (`utilisateur_id`)
@@ -194,8 +214,8 @@ CREATE TABLE IF NOT EXISTS `resultat` (
 DROP TABLE IF EXISTS `scrutin`;
 CREATE TABLE IF NOT EXISTS `scrutin` (
   `id_scrutin` int NOT NULL AUTO_INCREMENT,
-  `type` enum('UNINOMINAL','BINOMINAL','LISTE') COLLATE utf8mb4_unicode_ci NOT NULL,
-  `regle_vote` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `type` enum('UNINOMINAL','BINOMINAL','LISTE') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `regle_vote` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `election_id` int DEFAULT NULL,
   PRIMARY KEY (`id_scrutin`),
   UNIQUE KEY `election_id` (`election_id`)
@@ -219,17 +239,60 @@ INSERT INTO `scrutin` (`id_scrutin`, `type`, `regle_vote`, `election_id`) VALUES
 -- --------------------------------------------------------
 
 --
+-- Structure de la table `siege_liste`
+--
+
+DROP TABLE IF EXISTS `siege_liste`;
+CREATE TABLE IF NOT EXISTS `siege_liste` (
+  `id_siege` int NOT NULL AUTO_INCREMENT,
+  `election_id` int NOT NULL,
+  `liste_id` int NOT NULL,
+  `nb_sieges` int NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id_siege`),
+  KEY `election_id` (`election_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `tour_election`
+--
+
+DROP TABLE IF EXISTS `tour_election`;
+CREATE TABLE IF NOT EXISTS `tour_election` (
+  `id_tour` int NOT NULL AUTO_INCREMENT,
+  `election_id` int NOT NULL,
+  `numero_tour` int NOT NULL,
+  `statut` enum('EN_COURS','TERMINE','GAGNANT_TROUVE') COLLATE utf8mb4_unicode_ci DEFAULT 'EN_COURS',
+  `gagnant_id` int DEFAULT NULL,
+  `date_debut` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `date_fin` timestamp NULL DEFAULT NULL,
+  `date_fin_tour` datetime DEFAULT NULL,
+  PRIMARY KEY (`id_tour`),
+  KEY `election_id` (`election_id`)
+) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Déchargement des données de la table `tour_election`
+--
+
+INSERT INTO `tour_election` (`id_tour`, `election_id`, `numero_tour`, `statut`, `gagnant_id`, `date_debut`, `date_fin`, `date_fin_tour`) VALUES
+(1, 8, 1, 'EN_COURS', NULL, '2026-03-15 12:53:20', NULL, NULL);
+
+-- --------------------------------------------------------
+
+--
 -- Structure de la table `utilisateur`
 --
 
 DROP TABLE IF EXISTS `utilisateur`;
 CREATE TABLE IF NOT EXISTS `utilisateur` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `nom` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `prenom` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `email` varchar(150) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `mot_de_passe` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `role` enum('SUPER_ADMIN','ADMIN_ELECTION','ELECTEUR','ADMIN_ELECTION_PENDING') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ELECTEUR',
+  `nom` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `prenom` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `mot_de_passe` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `role` enum('SUPER_ADMIN','ADMIN_ELECTION','ELECTEUR','ADMIN_ELECTION_PENDING') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ELECTEUR',
   `actif` tinyint(1) DEFAULT '1',
   `date_creation` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -287,14 +350,35 @@ CREATE TABLE IF NOT EXISTS `vote` (
   KEY `candidat_id` (`candidat_id`),
   KEY `election_id` (`election_id`),
   KEY `candidat2_id` (`candidat2_id`)
-) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Déchargement des données de la table `vote`
 --
 
 INSERT INTO `vote` (`id_vote`, `date_vote`, `electeur_id`, `candidat_id`, `election_id`, `candidat2_id`) VALUES
-(1, '2026-03-12 12:58:07', 39, 6, 11, NULL);
+(1, '2026-03-12 12:58:07', 39, 6, 11, NULL),
+(2, '2026-03-15 13:20:52', 35, 8, 7, NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Structure de la table `vote_tour`
+--
+
+DROP TABLE IF EXISTS `vote_tour`;
+CREATE TABLE IF NOT EXISTS `vote_tour` (
+  `id_vote_tour` int NOT NULL AUTO_INCREMENT,
+  `election_id` int NOT NULL,
+  `electeur_id` int NOT NULL,
+  `liste_id` int NOT NULL,
+  `tour` int NOT NULL DEFAULT '1',
+  `date_vote` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_vote_tour`),
+  UNIQUE KEY `unique_vote_tour` (`electeur_id`,`election_id`,`tour`),
+  KEY `election_id` (`election_id`),
+  KEY `liste_id` (`liste_id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
