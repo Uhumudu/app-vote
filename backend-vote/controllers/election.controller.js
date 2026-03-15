@@ -1,19 +1,42 @@
-// src/controllers/election.controller.js
-
+// backend/controllers/election.controller.js
 import { pool } from "../config/db.js";
 
-// ================= ADMIN =================
-
-// Créer une élection
+// ─── SOUMETTRE UNE ÉLECTION ──────────────────────────────────────────────────
 export const submitElectionForValidation = async (req, res) => {
   try {
-    const { titre, description, date_debut, date_fin, type } = req.body;
+    const {
+      titre, description, date_debut, date_fin,
+      type, duree_tour_minutes, nb_sieges
+    } = req.body;
     const admin_id = req.user.id;
 
+    if (type === "LISTE" && !duree_tour_minutes)
+      return res.status(400).json({ error: "La durée par tour est obligatoire pour un scrutin de liste." });
+
+    if (type !== "LISTE" && !date_fin)
+      return res.status(400).json({ error: "La date de fin est obligatoire." });
+
+    // Calculer date_fin pour scrutin LISTE
+    let dateFin = date_fin;
+    if (type === "LISTE") {
+      const debut = new Date(date_debut);
+      dateFin = new Date(debut.getTime() + parseInt(duree_tour_minutes) * 60000)
+        .toISOString().slice(0, 19).replace("T", " ");
+    }
+
     const [result] = await pool.execute(
-      `INSERT INTO election (titre, description, date_debut, date_fin, statut, admin_id)
-       VALUES (?, ?, ?, ?, 'EN_ATTENTE', ?)`,
-      [titre, description, date_debut, date_fin, admin_id]
+      `INSERT INTO election
+         (titre, description, date_debut, date_fin, statut, admin_id, duree_tour_minutes, nb_sieges)
+       VALUES (?, ?, ?, ?, 'EN_ATTENTE', ?, ?, ?)`,
+      [
+        titre,
+        description || "",
+        date_debut,
+        dateFin,
+        admin_id,
+        type === "LISTE" ? parseInt(duree_tour_minutes) : null,
+        type === "LISTE" ? (parseInt(nb_sieges) || 29)  : null,
+      ]
     );
 
     const election_id = result.insertId;
@@ -23,32 +46,29 @@ export const submitElectionForValidation = async (req, res) => {
       [type, election_id]
     );
 
-    res.status(201).json({
-      message: "Élection soumise pour validation",
-      election_id
-    });
-
+    res.status(201).json({ message: "Élection soumise pour validation", election_id });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// ================= MODIFIER ELECTION =================
-
-// Récupérer une élection par ID
+// ─── RÉCUPÉRER UNE ÉLECTION PAR ID ──────────────────────────────────────────
 export const getElectionById = async (req, res) => {
   try {
     const { id } = req.params;
-    const [rows] = await pool.execute(`
-      SELECT e.id_election, e.titre, e.description, e.date_debut, e.date_fin, e.statut, s.type
-      FROM election e
-      JOIN scrutin s ON e.id_election = s.election_id
-      WHERE e.id_election = ?
-    `, [id]);
+    const [rows] = await pool.execute(
+      `SELECT e.id_election, e.titre, e.description,
+              e.date_debut, e.date_fin, e.statut,
+              e.duree_tour_minutes, e.tour_courant, e.nb_sieges,
+              s.type
+       FROM election e
+       JOIN scrutin s ON e.id_election = s.election_id
+       WHERE e.id_election = ?`,
+      [id]
+    );
 
-    if (rows.length === 0) {
+    if (rows.length === 0)
       return res.status(404).json({ message: "Élection introuvable" });
-    }
 
     res.json(rows[0]);
   } catch (error) {
@@ -56,204 +76,530 @@ export const getElectionById = async (req, res) => {
   }
 };
 
-// Mettre à jour une élection
+// ─── METTRE À JOUR UNE ÉLECTION ──────────────────────────────────────────────
 export const updateElection = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Vérifier le statut
     const [rows] = await pool.execute(
-      `SELECT statut FROM election WHERE id_election=?`,
-      [id]
+      `SELECT statut FROM election WHERE id_election = ?`, [id]
     );
 
-    if (rows.length === 0) {
+    if (rows.length === 0)
       return res.status(404).json({ message: "Élection introuvable" });
-    }
 
-    if (rows[0].statut === "EN_COURS" || rows[0].statut === "TERMINEE") {
-      return res.status(403).json({
-        message: "Impossible de modifier une élection déjà commencée"
-      });
-    }
+    if (["EN_COURS", "TERMINEE"].includes(rows[0].statut))
+      return res.status(403).json({ message: "Impossible de modifier une élection déjà commencée" });
 
-    const { titre, description, date_debut, date_fin, type } = req.body;
+    const {
+      titre, description, date_debut, date_fin,
+      type, duree_tour_minutes, nb_sieges
+    } = req.body;
+
+    let dateFin = date_fin;
+    if (type === "LISTE" && duree_tour_minutes) {
+      const debut = new Date(date_debut);
+      dateFin = new Date(debut.getTime() + parseInt(duree_tour_minutes) * 60000)
+        .toISOString().slice(0, 19).replace("T", " ");
+    }
 
     await pool.execute(
       `UPDATE election
-       SET titre=?, description=?, date_debut=?, date_fin=?
-       WHERE id_election=?`,
-      [titre, description, date_debut, date_fin, id]
+       SET titre = ?, description = ?, date_debut = ?, date_fin = ?,
+           duree_tour_minutes = ?, nb_sieges = ?
+       WHERE id_election = ?`,
+      [
+        titre,
+        description || "",
+        date_debut,
+        dateFin,
+        type === "LISTE" ? parseInt(duree_tour_minutes) : null,
+        type === "LISTE" ? (parseInt(nb_sieges) || 29)  : null,
+        id,
+      ]
     );
 
     await pool.execute(
-      `UPDATE scrutin SET type=? WHERE election_id=?`,
-      [type, id]
+      `UPDATE scrutin SET type = ? WHERE election_id = ?`, [type, id]
     );
 
     res.json({ message: "Élection modifiée" });
-
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// ================= SUPPRIMER ELECTION =================
+// ─── SUPPRIMER UNE ÉLECTION ──────────────────────────────────────────────────
 export const deleteElection = async (req, res) => {
   try {
     const { id } = req.params;
 
     const [rows] = await pool.execute(
-      `SELECT statut FROM election WHERE id_election=?`,
-      [id]
+      `SELECT statut FROM election WHERE id_election = ?`, [id]
     );
 
-    if (rows[0].statut === "EN_COURS") {
-      return res.status(403).json({
-        message: "Impossible de supprimer une élection en cours"
-      });
-    }
+    if (!rows.length)
+      return res.status(404).json({ message: "Élection introuvable" });
 
-    await pool.execute(`DELETE FROM scrutin WHERE election_id=?`, [id]);
-    await pool.execute(`DELETE FROM election WHERE id_election=?`, [id]);
+    if (rows[0].statut === "EN_COURS")
+      return res.status(403).json({ message: "Impossible de supprimer une élection en cours" });
+
+    await pool.execute(`DELETE FROM scrutin         WHERE election_id = ?`, [id]);
+    await pool.execute(`DELETE FROM tour_election   WHERE election_id = ?`, [id]);
+    await pool.execute(`DELETE FROM vote_tour       WHERE election_id = ?`, [id]);
+    await pool.execute(`DELETE FROM siege_liste     WHERE election_id = ?`, [id]);
+    await pool.execute(`DELETE FROM fusion_liste    WHERE election_id = ?`, [id]);
+    await pool.execute(`DELETE FROM election        WHERE id_election = ?`, [id]);
 
     res.json({ message: "Élection supprimée" });
-
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// ================= RECUPERER LES ELECTIONS =================
+// ─── RÉCUPÉRER LES ÉLECTIONS DE L'ADMIN ─────────────────────────────────────
 export const getAdminElections = async (req, res) => {
   try {
     const admin_id = req.user.id;
 
-    // 🔹 Mettre EN_COURS automatiquement
     await pool.execute(`
-      UPDATE election
-      SET statut='EN_COURS'
-      WHERE statut='APPROUVEE'
-      AND date_debut <= NOW()
+      UPDATE election SET statut = 'EN_COURS'
+      WHERE statut = 'APPROUVEE' AND date_debut <= NOW()
     `);
 
-    // 🔹 Mettre TERMINEE automatiquement
     await pool.execute(`
-      UPDATE election
-      SET statut='TERMINEE'
-      WHERE statut='EN_COURS'
-      AND date_fin <= NOW()
+      UPDATE election e
+      JOIN scrutin s ON s.election_id = e.id_election
+      SET e.statut = 'TERMINEE'
+      WHERE e.statut = 'EN_COURS' AND s.type != 'LISTE' AND e.date_fin <= NOW()
     `);
 
-    const [rows] = await pool.execute(`
-      SELECT e.id_election,
-             e.titre,
-             e.date_debut,
-             e.date_fin,
-             e.statut,
-             s.type
-      FROM election e
-      JOIN scrutin s ON e.id_election = s.election_id
-      WHERE e.admin_id = ?
-      ORDER BY e.date_debut DESC
-    `, [admin_id]);
+    const [rows] = await pool.execute(
+      `SELECT e.id_election, e.titre, e.date_debut, e.date_fin, e.statut,
+              e.duree_tour_minutes, e.tour_courant, e.nb_sieges,
+              s.type
+       FROM election e
+       JOIN scrutin s ON e.id_election = s.election_id
+       WHERE e.admin_id = ?
+       ORDER BY e.date_debut DESC`,
+      [admin_id]
+    );
 
     res.json(rows);
-
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// ================= SUPER ADMIN =================
+// ─── APPROUVER + PROMOUVOIR ADMIN ────────────────────────────────────────────
 export const approveElectionAndPromoteAdmin = async (req, res) => {
   try {
     const { id } = req.params;
 
     await pool.execute(
-      `UPDATE election SET statut='APPROUVEE' WHERE id_election=?`,
-      [id]
+      `UPDATE election SET statut = 'APPROUVEE' WHERE id_election = ?`, [id]
     );
 
     const [rows] = await pool.execute(
-      `SELECT admin_id FROM election WHERE id_election=?`,
-      [id]
+      `SELECT admin_id FROM election WHERE id_election = ?`, [id]
     );
 
-    const adminId = rows[0].admin_id;
-
     await pool.execute(
-      `UPDATE utilisateur SET role='ADMIN_ELECTION' WHERE id=?`,
-      [adminId]
+      `UPDATE utilisateur SET role = 'ADMIN_ELECTION' WHERE id = ?`, [rows[0].admin_id]
     );
 
     res.json({ message: "Élection approuvée et admin promu" });
-
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// ================= REFUSER =================
+// ─── REFUSER UNE ÉLECTION ────────────────────────────────────────────────────
 export const rejectElection = async (req, res) => {
   try {
     const { id } = req.params;
-
     await pool.execute(
-      `UPDATE election SET statut='SUSPENDUE' WHERE id_election=?`,
-      [id]
+      `UPDATE election SET statut = 'SUSPENDUE' WHERE id_election = ?`, [id]
     );
-
     res.json({ message: "Élection refusée" });
-
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// ================= RESULTATS =================
+// ─── RÉSULTATS SIMPLES ───────────────────────────────────────────────────────
 export const getElectionResults = async (req, res) => {
   try {
     const { id } = req.params;
-
-    const [rows] = await pool.execute(`
-      SELECT c.*, COUNT(v.id_vote) AS nb_votes
-      FROM candidat c
-      LEFT JOIN vote v ON c.id_candidat = v.candidat_id
-      WHERE c.election_id = ?
-      GROUP BY c.id_candidat
-    `, [id]);
-
+    const [rows] = await pool.execute(
+      `SELECT c.*, COUNT(v.id_vote) AS nb_votes
+       FROM candidat c
+       LEFT JOIN vote v ON c.id_candidat = v.candidat_id
+       WHERE c.election_id = ?
+       GROUP BY c.id_candidat`,
+      [id]
+    );
     res.json(rows);
-
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// ================= ELECTIONS EN ATTENTE =================
+// ─── ÉLECTIONS EN ATTENTE (super admin) ──────────────────────────────────────
 export const getPendingElections = async (req, res) => {
   try {
-    const [rows] = await pool.execute(`
-      SELECT e.id_election,
-             e.titre,
-             e.date_debut,
-             e.date_fin,
-             e.statut,
-             s.type,
-             u.nom AS nom_admin,
-             u.prenom AS prenom_admin
-      FROM election e
-      JOIN scrutin s ON e.id_election = s.election_id
-      JOIN utilisateur u ON e.admin_id = u.id
-      WHERE e.statut = 'EN_ATTENTE'
-      ORDER BY e.date_debut ASC
-    `);
-
+    const [rows] = await pool.execute(
+      `SELECT e.id_election, e.titre, e.date_debut, e.date_fin, e.statut,
+              e.duree_tour_minutes, e.nb_sieges,
+              s.type,
+              u.nom AS nom_admin, u.prenom AS prenom_admin
+       FROM election e
+       JOIN scrutin s     ON e.id_election = s.election_id
+       JOIN utilisateur u ON e.admin_id    = u.id
+       WHERE e.statut = 'EN_ATTENTE'
+       ORDER BY e.date_debut ASC`
+    );
     res.json(rows);
-
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// // backend/controllers/election.controller.js
+// import { pool } from "../config/db.js";
+
+// // ─── SOUMETTRE UNE ÉLECTION ──────────────────────────────────────────────────
+// export const submitElectionForValidation = async (req, res) => {
+//   try {
+//     const {
+//       titre, description, date_debut, date_fin,
+//       type, duree_tour_minutes
+//     } = req.body;
+//     const admin_id = req.user.id;
+
+//     // Pour scrutin LISTE : duree_tour_minutes obligatoire
+//     if (type === "LISTE" && !duree_tour_minutes) {
+//       return res.status(400).json({
+//         error: "La durée par tour est obligatoire pour un scrutin de liste."
+//       });
+//     }
+
+//     // Pour UNINOMINAL / BINOMINAL : date_fin obligatoire
+//     if (type !== "LISTE" && !date_fin) {
+//       return res.status(400).json({
+//         error: "La date de fin est obligatoire."
+//       });
+//     }
+
+//     // Calculer date_fin réelle pour scrutin LISTE
+//     // = date_debut + duree_tour_minutes (fin du premier tour)
+//     let dateFin = date_fin;
+//     if (type === "LISTE") {
+//       const debut = new Date(date_debut);
+//       dateFin = new Date(debut.getTime() + parseInt(duree_tour_minutes) * 60000)
+//         .toISOString()
+//         .slice(0, 19)
+//         .replace("T", " ");
+//     }
+
+//     // Insérer l'élection
+//     const [result] = await pool.execute(
+//       `INSERT INTO election
+//          (titre, description, date_debut, date_fin, statut, admin_id, duree_tour_minutes)
+//        VALUES (?, ?, ?, ?, 'EN_ATTENTE', ?, ?)`,
+//       [
+//         titre,
+//         description,
+//         date_debut,
+//         dateFin,
+//         admin_id,
+//         type === "LISTE" ? parseInt(duree_tour_minutes) : null,
+//       ]
+//     );
+
+//     const election_id = result.insertId;
+
+//     // Insérer le scrutin
+//     await pool.execute(
+//       `INSERT INTO scrutin (type, election_id) VALUES (?, ?)`,
+//       [type, election_id]
+//     );
+
+//     res.status(201).json({
+//       message: "Élection soumise pour validation",
+//       election_id,
+//     });
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+
+// // ─── RÉCUPÉRER UNE ÉLECTION PAR ID ──────────────────────────────────────────
+// export const getElectionById = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const [rows] = await pool.execute(
+//       `SELECT e.id_election, e.titre, e.description,
+//               e.date_debut, e.date_fin, e.statut,
+//               e.duree_tour_minutes, e.tour_courant,
+//               s.type
+//        FROM election e
+//        JOIN scrutin s ON e.id_election = s.election_id
+//        WHERE e.id_election = ?`,
+//       [id]
+//     );
+
+//     if (rows.length === 0)
+//       return res.status(404).json({ message: "Élection introuvable" });
+
+//     res.json(rows[0]);
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+
+// // ─── METTRE À JOUR UNE ÉLECTION ──────────────────────────────────────────────
+// export const updateElection = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+
+//     const [rows] = await pool.execute(
+//       `SELECT statut FROM election WHERE id_election = ?`,
+//       [id]
+//     );
+
+//     if (rows.length === 0)
+//       return res.status(404).json({ message: "Élection introuvable" });
+
+//     if (["EN_COURS", "TERMINEE"].includes(rows[0].statut))
+//       return res.status(403).json({
+//         message: "Impossible de modifier une élection déjà commencée"
+//       });
+
+//     const {
+//       titre, description, date_debut, date_fin,
+//       type, duree_tour_minutes
+//     } = req.body;
+
+//     // Recalculer date_fin pour scrutin LISTE
+//     let dateFin = date_fin;
+//     if (type === "LISTE" && duree_tour_minutes) {
+//       const debut = new Date(date_debut);
+//       dateFin = new Date(debut.getTime() + parseInt(duree_tour_minutes) * 60000)
+//         .toISOString()
+//         .slice(0, 19)
+//         .replace("T", " ");
+//     }
+
+//     await pool.execute(
+//       `UPDATE election
+//        SET titre = ?, description = ?, date_debut = ?, date_fin = ?,
+//            duree_tour_minutes = ?
+//        WHERE id_election = ?`,
+//       [
+//         titre,
+//         description,
+//         date_debut,
+//         dateFin,
+//         type === "LISTE" ? parseInt(duree_tour_minutes) : null,
+//         id,
+//       ]
+//     );
+
+//     await pool.execute(
+//       `UPDATE scrutin SET type = ? WHERE election_id = ?`,
+//       [type, id]
+//     );
+
+//     res.json({ message: "Élection modifiée" });
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+
+// // ─── SUPPRIMER UNE ÉLECTION ──────────────────────────────────────────────────
+// export const deleteElection = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+
+//     const [rows] = await pool.execute(
+//       `SELECT statut FROM election WHERE id_election = ?`,
+//       [id]
+//     );
+
+//     if (!rows.length)
+//       return res.status(404).json({ message: "Élection introuvable" });
+
+//     if (rows[0].statut === "EN_COURS")
+//       return res.status(403).json({
+//         message: "Impossible de supprimer une élection en cours"
+//       });
+
+//     await pool.execute(`DELETE FROM scrutin         WHERE election_id = ?`, [id]);
+//     await pool.execute(`DELETE FROM tour_election   WHERE election_id = ?`, [id]);
+//     await pool.execute(`DELETE FROM vote_tour       WHERE election_id = ?`, [id]);
+//     await pool.execute(`DELETE FROM siege_liste     WHERE election_id = ?`, [id]);
+//     await pool.execute(`DELETE FROM fusion_liste    WHERE election_id = ?`, [id]);
+//     await pool.execute(`DELETE FROM election        WHERE id_election = ?`, [id]);
+
+//     res.json({ message: "Élection supprimée" });
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+
+// // ─── RÉCUPÉRER LES ÉLECTIONS DE L'ADMIN ─────────────────────────────────────
+// export const getAdminElections = async (req, res) => {
+//   try {
+//     const admin_id = req.user.id;
+
+//     // Mettre EN_COURS les élections approuvées dont la date de début est passée
+//     await pool.execute(`
+//       UPDATE election
+//       SET statut = 'EN_COURS'
+//       WHERE statut = 'APPROUVEE'
+//         AND date_debut <= NOW()
+//     `);
+
+//     // Mettre TERMINEE les élections UNINOMINAL/BINOMINAL EN_COURS expirées
+//     // (Pour LISTE, c'est le cron qui gère)
+//     await pool.execute(`
+//       UPDATE election e
+//       JOIN scrutin s ON s.election_id = e.id_election
+//       SET e.statut = 'TERMINEE'
+//       WHERE e.statut = 'EN_COURS'
+//         AND s.type != 'LISTE'
+//         AND e.date_fin <= NOW()
+//     `);
+
+//     const [rows] = await pool.execute(
+//       `SELECT e.id_election,
+//               e.titre,
+//               e.date_debut,
+//               e.date_fin,
+//               e.statut,
+//               e.duree_tour_minutes,
+//               e.tour_courant,
+//               s.type
+//        FROM election e
+//        JOIN scrutin s ON e.id_election = s.election_id
+//        WHERE e.admin_id = ?
+//        ORDER BY e.date_debut DESC`,
+//       [admin_id]
+//     );
+
+//     res.json(rows);
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+
+// // ─── APPROUVER + PROMOUVOIR ADMIN ────────────────────────────────────────────
+// export const approveElectionAndPromoteAdmin = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+
+//     await pool.execute(
+//       `UPDATE election SET statut = 'APPROUVEE' WHERE id_election = ?`,
+//       [id]
+//     );
+
+//     const [rows] = await pool.execute(
+//       `SELECT admin_id FROM election WHERE id_election = ?`,
+//       [id]
+//     );
+
+//     await pool.execute(
+//       `UPDATE utilisateur SET role = 'ADMIN_ELECTION' WHERE id = ?`,
+//       [rows[0].admin_id]
+//     );
+
+//     res.json({ message: "Élection approuvée et admin promu" });
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+
+// // ─── REFUSER UNE ÉLECTION ────────────────────────────────────────────────────
+// export const rejectElection = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     await pool.execute(
+//       `UPDATE election SET statut = 'SUSPENDUE' WHERE id_election = ?`,
+//       [id]
+//     );
+//     res.json({ message: "Élection refusée" });
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+
+// // ─── RÉSULTATS SIMPLES (route existante) ─────────────────────────────────────
+// export const getElectionResults = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const [rows] = await pool.execute(
+//       `SELECT c.*, COUNT(v.id_vote) AS nb_votes
+//        FROM candidat c
+//        LEFT JOIN vote v ON c.id_candidat = v.candidat_id
+//        WHERE c.election_id = ?
+//        GROUP BY c.id_candidat`,
+//       [id]
+//     );
+//     res.json(rows);
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+
+// // ─── ÉLECTIONS EN ATTENTE (super admin) ──────────────────────────────────────
+// export const getPendingElections = async (req, res) => {
+//   try {
+//     const [rows] = await pool.execute(
+//       `SELECT e.id_election,
+//               e.titre,
+//               e.date_debut,
+//               e.date_fin,
+//               e.statut,
+//               e.duree_tour_minutes,
+//               s.type,
+//               u.nom        AS nom_admin,
+//               u.prenom     AS prenom_admin
+//        FROM election e
+//        JOIN scrutin s     ON e.id_election = s.election_id
+//        JOIN utilisateur u ON e.admin_id    = u.id
+//        WHERE e.statut = 'EN_ATTENTE'
+//        ORDER BY e.date_debut ASC`
+//     );
+//     res.json(rows);
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   }
+// };
 
