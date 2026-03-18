@@ -6,21 +6,16 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 // ─── Super Admin ──────────────────────────────────────────────────────────────
-import AdminDashboard       from "./pages/admin/superadmin/superAdminDashboard";
-import UtilisateursPage     from "./pages/admin/superadmin/utilisateursPage";
-import StatistiquesPage     from "./pages/admin/superadmin/StatistiquesPage";
-import ParametresPage       from "./pages/admin/superadmin/ParametresPage";
-import AjouterUtilisateur   from "./pages/admin/superadmin/AjouterUtilisateur";
-import ModifierUtilisateur  from "./pages/admin/superadmin/ModifierUtilisateur";
-import ElectionsValider     from "./pages/admin/superadmin/electionsValider";
-import SuperAdminElections       from "./pages/admin/superadmin/SuperAdminElections";
-import SuperAdminCreerElection   from "./pages/admin/superadmin/SuperAdminCreerElection";
+import AdminDashboard             from "./pages/admin/superadmin/superAdminDashboard";
+import UtilisateursPage           from "./pages/admin/superadmin/utilisateursPage";
+import StatistiquesPage           from "./pages/admin/superadmin/StatistiquesPage";
+import AjouterUtilisateur         from "./pages/admin/superadmin/AjouterUtilisateur";
+import ModifierUtilisateur        from "./pages/admin/superadmin/ModifierUtilisateur";
+import ElectionsValider           from "./pages/admin/superadmin/electionsValider";
+import SuperAdminElections        from "./pages/admin/superadmin/SuperAdminElections";
+import SuperAdminCreerElection    from "./pages/admin/superadmin/SuperAdminCreerElection";
 import SuperAdminModifierElection from "./pages/admin/superadmin/SuperAdminModifierElection";
-
-
-
-
-
+import SuperAdminSettings         from "./pages/admin/superadmin/SuperAdminSettings";
 
 // ─── Admin Élection ───────────────────────────────────────────────────────────
 import AdminElectionDashboard from "./pages/admin/adminelection/adminElectionDashboard";
@@ -30,7 +25,8 @@ import CreerElection          from "./pages/admin/adminelection/CreerElection";
 import ModifierElection       from "./pages/admin/adminelection/ModifierElection";
 import ElectionDetails        from "./pages/admin/adminelection/ElectionDetails";
 import Resultats              from "./pages/admin/adminelection/resultats";
-import DepouillementTour      from "./pages/admin/adminelection/DepouillementTour"; // ✅ casse corrigée
+import DepouillementTour      from "./pages/admin/adminelection/DepouillementTour";
+import AdminElectionSettings  from "./pages/admin/adminelection/AdminElectionSettings";
 
 // ─── Candidats ────────────────────────────────────────────────────────────────
 import Candidats        from "./pages/admin/adminelection/Candidats";
@@ -71,44 +67,44 @@ function App() {
           <Route path="/logout" element={<Logout />} />
 
           {/* ── Super Admin ────────────────────────────────────────────────── */}
-          <Route path="/superAdminDashboard"                         element={<AdminDashboard />} />
-          <Route path="/admin/superadmin/utilisateursPage"           element={<UtilisateursPage />} />
-          <Route path="/admin/superadmin/StatistiquesPage"           element={<StatistiquesPage />} />
-          <Route path="/admin/superadmin/ParametresPage"             element={<ParametresPage />} />
-          <Route path="/admin/superadmin/electionsValider"           element={<ElectionsValider />} />
-          <Route path="/dashboard/utilisateurs/ajouter"              element={<AjouterUtilisateur />} />
-          <Route path="/dashboard/utilisateurs/modifier/:id"         element={<ModifierUtilisateur />} />
-          <Route path="/admin/superadmin/elections"                       element={<SuperAdminElections />} />
+          <Route path="/superAdminDashboard"                             element={<AdminDashboard />} />
+          <Route path="/admin/superadmin/utilisateursPage"               element={<UtilisateursPage />} />
+          <Route path="/admin/superadmin/StatistiquesPage"               element={<StatistiquesPage />} />
+          <Route path="/admin/superadmin/electionsValider"               element={<ElectionsValider />} />
+          <Route path="/dashboard/utilisateurs/ajouter"                  element={<AjouterUtilisateur />} />
+          <Route path="/dashboard/utilisateurs/modifier/:id"             element={<ModifierUtilisateur />} />
+          <Route path="/admin/superadmin/elections"                      element={<SuperAdminElections />} />
           <Route path="/admin/superadmin/elections/creer"                element={<SuperAdminCreerElection />} />
           <Route path="/admin/superadmin/elections/modifier/:id"         element={<SuperAdminModifierElection />} />
-
+          <Route path="/admin/superadmin/parametres"                     element={<SuperAdminSettings />} />
 
           {/* ── Admin Élection ─────────────────────────────────────────────── */}
-          <Route path="/adminElectionDashboard"                        element={<AdminElectionDashboard />} />
-          <Route path="/creer-election"                                element={<RegisterElection />} />
-          <Route path="/admin/adminelection/ElectionPage"              element={<ElectionPage />} />
-          <Route path="/admin/adminelection/Creer-election"            element={<CreerElection />} />
-          <Route path="/admin/adminelection/modifier-election/:id"     element={<ModifierElection />} />
-          <Route path="/admin/adminelection/detail-election/:id"       element={<ElectionDetails />} />
-          <Route path="/admin/adminelection/resultats"                 element={<Resultats />} />
-          <Route path="/admin/adminelection/depouillement/:electionId" element={<DepouillementTour />} />
+          <Route path="/adminElectionDashboard"                          element={<AdminElectionDashboard />} />
+          <Route path="/creer-election"                                  element={<RegisterElection />} />
+          <Route path="/admin/adminelection/ElectionPage"                element={<ElectionPage />} />
+          <Route path="/admin/adminelection/Creer-election"              element={<CreerElection />} />
+          <Route path="/admin/adminelection/modifier-election/:id"       element={<ModifierElection />} />
+          <Route path="/admin/adminelection/detail-election/:id"         element={<ElectionDetails />} />
+          <Route path="/admin/adminelection/resultats"                   element={<Resultats />} />
+          <Route path="/admin/adminelection/depouillement/:electionId"   element={<DepouillementTour />} />
+          <Route path="/admin/adminelection/parametres"                  element={<AdminElectionSettings />} />
 
           {/* ── Candidats ──────────────────────────────────────────────────── */}
-          <Route path="/admin/adminelection/candidats"                     element={<Candidats />} />
-          <Route path="/admin/adminelection/creer-candidat"                element={<CreerCandidat />} />
-          <Route path="/admin/adminelection/modifier-candidat/:candidatId" element={<ModifierCandidat />} />
+          <Route path="/admin/adminelection/candidats"                        element={<Candidats />} />
+          <Route path="/admin/adminelection/creer-candidat"                   element={<CreerCandidat />} />
+          <Route path="/admin/adminelection/modifier-candidat/:candidatId"    element={<ModifierCandidat />} />
 
           {/* ── Électeurs admin ────────────────────────────────────────────── */}
-          <Route path="/admin/adminelection/electeurs"                                 element={<Electeurs />} />
-          <Route path="/admin/adminelection/electeurs/:electionId"                     element={<Electeurs />} />
-          <Route path="/admin/adminelection/AjouterElecteur"                           element={<AjouterElecteur />} />
-          <Route path="/admin/adminelection/electeurs/:electionId/AjouterElecteur"     element={<AjouterElecteur />} />
-          <Route path="/admin/adminelection/election/:electionId/ModifierElecteur/:id" element={<ModifierElecteur />} />
+          <Route path="/admin/adminelection/electeurs"                                  element={<Electeurs />} />
+          <Route path="/admin/adminelection/electeurs/:electionId"                      element={<Electeurs />} />
+          <Route path="/admin/adminelection/AjouterElecteur"                            element={<AjouterElecteur />} />
+          <Route path="/admin/adminelection/electeurs/:electionId/AjouterElecteur"      element={<AjouterElecteur />} />
+          <Route path="/admin/adminelection/election/:electionId/ModifierElecteur/:id"  element={<ModifierElecteur />} />
 
           {/* ── Électeur (votant) ──────────────────────────────────────────── */}
-          <Route path="/DashboardElecteur"                element={<DashboardElecteur />} />
-          <Route path="/electeur/voter/:electionId"       element={<VotePage />} />
-          <Route path="/electeur/resultats/:electionId"   element={<ResultatsElecteur />} />
+          <Route path="/DashboardElecteur"              element={<DashboardElecteur />} />
+          <Route path="/electeur/voter/:electionId"     element={<VotePage />} />
+          <Route path="/electeur/resultats/:electionId" element={<ResultatsElecteur />} />
 
         </Routes>
 

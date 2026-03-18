@@ -21,7 +21,6 @@ export default function SuperAdminSidebar({ active }) {
         <h1 className="text-xl font-black text-blue-700 tracking-tight">🗳 eVote</h1>
         <p className="text-xs text-blue-400 font-medium mt-0.5">Super administrateur</p>
       </div>
-
       <nav className="flex-1 space-y-1">
         {NAV_ITEMS.map(item => (
           <Link
@@ -37,14 +36,21 @@ export default function SuperAdminSidebar({ active }) {
           </Link>
         ))}
       </nav>
-
       <div className="space-y-1 pt-4 border-t border-gray-100 mt-4">
-        <Link to="/admin/superadmin/ParametresPage"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition-all">
+        <Link
+          to="/admin/superadmin/parametres"
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+            active === "parametres"
+              ? "bg-blue-100 text-blue-700 font-semibold"
+              : "text-gray-600 hover:bg-gray-100 hover:text-gray-800"
+          }`}
+        >
           <FiSettings size={15} /> Paramètres
         </Link>
-        <Link to="/logout"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all">
+        <Link
+          to="/logout"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-all"
+        >
           <FiLogOut size={15} /> Déconnexion
         </Link>
       </div>

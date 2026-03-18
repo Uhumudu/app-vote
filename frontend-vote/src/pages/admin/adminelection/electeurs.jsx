@@ -4,12 +4,13 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import Papa from "papaparse";
 import {
-  FiEdit, FiPlus, FiUpload, FiHome, FiLogOut,
-  FiCalendar, FiSettings, FiTrash2, FiDownload,
+  FiEdit, FiPlus, FiUpload,
+  FiTrash2, FiDownload,
   FiKey, FiCopy, FiEye, FiEyeOff, FiX, FiCheck,
   FiSearch, FiUsers, FiAlertCircle, FiChevronLeft, FiChevronRight
 } from "react-icons/fi";
 import api from "../../../services/api";
+import AdminElectionSidebar from "../../../components/AdminElectionSidebar";
 
 export default function Electeurs() {
 
@@ -258,34 +259,7 @@ export default function Electeurs() {
         </div>
       )}
 
-      {/* ===== SIDEBAR ===== */}
-      <aside className="w-64 bg-white/80 backdrop-blur border-r border-indigo-100 p-6 flex flex-col">
-        <h1 className="text-2xl font-bold mb-10 text-indigo-700">🗳 eVote – Admin</h1>
-        <nav className="flex-1 space-y-1">
-          <Link to="/adminElectionDashboard"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-sm font-medium">
-            <FiHome className="text-base" /> Tableau de bord
-          </Link>
-          <Link to="/admin/adminelection/ElectionPage"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-sm font-medium">
-            <FiCalendar className="text-base" /> Mes élections
-          </Link>
-          {/* <Link to={`/admin/adminelection/electeurs/${electionId}`}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-indigo-100 text-indigo-700 font-semibold text-sm">
-            <FiUsers className="text-base" /> Électeurs
-          </Link> */}
-        </nav>
-        <div className="space-y-1 mt-6 pt-6 border-t border-gray-100">
-          <Link to="/settings"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-500 hover:bg-gray-50 transition-all text-sm font-medium">
-            <FiSettings className="text-base" /> Paramètres
-          </Link>
-          <Link to="/logout"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-50 hover:text-red-600 transition-all text-sm font-medium">
-            <FiLogOut className="text-base" /> Déconnexion
-          </Link>
-        </div>
-      </aside>
+      <AdminElectionSidebar active="elections" />
 
       {/* ===== MAIN ===== */}
       <main className="flex-1 p-8 overflow-y-auto">
@@ -585,4 +559,6 @@ export default function Electeurs() {
     </div>
   );
 }
+
+
 

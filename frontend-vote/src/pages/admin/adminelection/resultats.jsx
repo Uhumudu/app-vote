@@ -3,8 +3,9 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Bar } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend } from "chart.js";
-import { FiHome, FiUsers, FiBarChart2, FiSettings, FiLogOut, FiCalendar, FiUserCheck, FiChevronDown, FiAward, FiTrendingUp } from "react-icons/fi";
+import { FiUsers, FiBarChart2, FiChevronDown, FiAward, FiTrendingUp } from "react-icons/fi";
 import api from "../../../services/api";
+import AdminElectionSidebar from "../../../components/AdminElectionSidebar";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
@@ -56,21 +57,7 @@ export default function Resultats() {
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-indigo-100 via-indigo-200 to-indigo-300">
 
-      {/* ===== SIDEBAR ORIGINAL ===== */}
-      <aside className="w-64 bg-white/80 backdrop-blur border-r p-6 flex flex-col">
-        <h1 className="text-2xl font-bold mb-10 text-indigo-700">🗳 eVote – Admin</h1>
-        <nav className="flex-1 space-y-3">
-          <Link to="/adminElectionDashboard"           className="flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-indigo-100"><FiHome /> Tableau de bord</Link>
-          <Link to="/admin/adminelection/ElectionPage" className="flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-indigo-100"><FiCalendar /> Mes élections</Link>
-          {/* <Link to="/admin/adminelection/candidats"    className="flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-indigo-100"><FiUsers /> Candidats</Link>
-          <Link to="/admin/adminelection/electeurs"    className="flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-indigo-100"><FiUserCheck /> Électeurs</Link>
-          <Link to="/admin/adminelection/resultats"    className="flex items-center gap-4 px-4 py-3 rounded-xl bg-indigo-100 font-semibold"><FiBarChart2 /> Résultats</Link> */}
-        </nav>
-        <div className="space-y-3 mt-6">
-          <Link to="/settings" className="flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-indigo-100"><FiSettings /> Paramètres</Link>
-          <Link to="/logout"   className="flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-indigo-100 text-red-600"><FiLogOut /> Déconnexion</Link>
-        </div>
-      </aside>
+      <AdminElectionSidebar active="elections" />
 
       {/* ===== MAIN ===== */}
       <main className="flex-1 p-8 overflow-y-auto">
@@ -291,4 +278,3 @@ export default function Resultats() {
     </div>
   );
 }
-
