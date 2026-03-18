@@ -23,6 +23,7 @@ import scrutinListeRoutes  from "./routes/scrutin_liste.routes.js";
 import superadminElectionsRoutes from "./routes/superadmin_elections.routes.js";
 import adminElectionSettingsRoutes from "./routes/adminElectionSettings.routes.js";
 import superAdminSettingsRoutes    from "./routes/superAdminSettings.routes.js";
+import statistiquesSuperAdminRoutes from "./routes/statistiques.routes.js";
 
 
 // 🔹 Jobs
@@ -58,7 +59,7 @@ app.use("/api",               scrutinListeRoutes);
 app.use("/api", superadminElectionsRoutes);
 app.use("/api/admin-election/settings", adminElectionSettingsRoutes);
 app.use("/api/super-admin/settings",    superAdminSettingsRoutes);
-
+app.use("/api/super-admin/statistiques", statistiquesSuperAdminRoutes);
 
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
