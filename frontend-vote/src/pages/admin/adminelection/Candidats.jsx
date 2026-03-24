@@ -18,6 +18,35 @@ const photoUrl = (photo) => {
   return `${BASE_URL}${photo}`;
 };
 
+// ─── Helper : génère et télécharge un CSV bien formaté pour Excel ─────────────
+// BOM UTF-8 + séparateur ";" → chaque colonne dans sa propre cellule, accents OK
+const downloadCSV = (filename, headers, rows) => {
+  const BOM = "\uFEFF";
+  const sep = ";";
+
+  const escape = (val) => {
+    if (val === null || val === undefined) return "";
+    const str = String(val);
+    if (str.includes(sep) || str.includes('"') || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const csvContent =
+    BOM +
+    headers.map(escape).join(sep) + "\n" +
+    rows.map(row => row.map(escape).join(sep)).join("\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
 export default function Candidats() {
   const { electionId } = useParams();
   const navigate = useNavigate();
@@ -90,11 +119,16 @@ export default function Candidats() {
     } catch (err) { showToast(err.response?.data?.message || "Erreur suppression liste", "error"); }
   };
 
+  // ✅ CORRIGÉ : détection automatique du séparateur (virgule ou point-virgule)
   const handleCSVImport = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    setCsvError("");
     Papa.parse(file, {
-      header: true, skipEmptyLines: true, complete: (result) => {
+      header: true,
+      skipEmptyLines: true,
+      delimiter: "", // détection automatique
+      complete: (result) => {
         const preview = []; const errors = [];
         result.data.forEach((row, i) => {
           const rowErrors = [];
@@ -103,7 +137,14 @@ export default function Candidats() {
           if (!row.parti?.trim()) rowErrors.push("Parti manquant");
           if (election?.type !== "LISTE" && (!row.age || isNaN(row.age))) rowErrors.push("Âge invalide");
           if (rowErrors.length) errors.push({ ligne: i + 2, erreurs: rowErrors });
-          preview.push({ id: Date.now() + i, liste: row.liste, nom: row.nom, parti: row.parti, age: row.age, valide: !rowErrors.length });
+          preview.push({
+            id:     Date.now() + i,
+            liste:  row.liste,
+            nom:    row.nom,
+            parti:  row.parti,
+            age:    row.age,
+            valide: !rowErrors.length,
+          });
         });
         setCsvPreview(preview); setCsvErrors(errors);
         setCsvError(errors.length ? "Certaines lignes contiennent des erreurs" : "");
@@ -124,14 +165,26 @@ export default function Candidats() {
     } catch (err) { showToast(err.response?.data?.message || "Erreur import", "error"); }
   };
 
+  // ✅ CORRIGÉ : BOM UTF-8 + séparateur ";" → colonnes séparées dans Excel
   const downloadCSVModel = () => {
-    const content = election?.type === "LISTE"
-      ? "liste,nom,parti\nListe A,Jean Dupont,Parti A"
-      : "nom,parti,age\nJean Dupont,Parti A,45";
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8;" }));
-    a.download = election?.type === "LISTE" ? "modele_candidats_liste.csv" : "modele_candidats.csv";
-    a.click();
+    if (election?.type === "LISTE") {
+      downloadCSV("modele_candidats_liste.csv",
+        ["liste", "nom", "parti"],
+        [
+          ["Liste A", "Jean Dupont", "Parti A"],
+          ["Liste A", "Marie Martin", "Parti A"],
+          ["Liste B", "Paul Durand", "Parti B"],
+        ]
+      );
+    } else {
+      downloadCSV("modele_candidats.csv",
+        ["nom", "parti", "age"],
+        [
+          ["Jean Dupont", "Parti A", "45"],
+          ["Marie Martin", "Parti B", "38"],
+        ]
+      );
+    }
   };
 
   // Filtrage recherche
@@ -215,9 +268,10 @@ export default function Candidats() {
                     <input type="file" accept=".csv" hidden onChange={handleCSVImport} />
                   </label>
                   <div className="h-px bg-gray-100 mx-3" />
+                  {/* ✅ CORRIGÉ : utilise downloadCSVModel corrigé */}
                   <button
                     className="flex items-center gap-3 w-full px-4 py-3 hover:bg-blue-50 text-gray-700 text-sm font-medium transition-all"
-                    onClick={downloadCSVModel}>
+                    onClick={() => { downloadCSVModel(); setShowDropdown(false); }}>
                     <FiDownload className="text-blue-500" /> Télécharger modèle
                   </button>
                 </div>
@@ -332,7 +386,6 @@ export default function Candidats() {
                   </tr>
                 ) : filteredListes.map((l) => (
                   <React.Fragment key={l.id_liste}>
-                    {/* Ligne liste */}
                     <tr className="hover:bg-indigo-50/40 transition-all">
                       <td className="px-6 py-4">
                         <button
@@ -357,7 +410,6 @@ export default function Candidats() {
                       </td>
                     </tr>
 
-                    {/* Candidats expandés */}
                     {expandedListe === l.id_liste && (
                       candidats.filter(c => c.id_liste === l.id_liste).length === 0 ? (
                         <tr>
@@ -430,8 +482,6 @@ export default function Candidats() {
                   </tr>
                 ) : filteredCandidats.map((c) => (
                   <tr key={c.id_candidat} className="hover:bg-indigo-50/40 transition-all">
-
-                    {/* ── Colonne Photo ── */}
                     <td className="px-4 py-3 text-center">
                       {photoUrl(c.photo) ? (
                         <img src={photoUrl(c.photo)} alt={c.nom}
@@ -445,15 +495,10 @@ export default function Candidats() {
                         <span className="text-indigo-600 font-black text-lg">{c.nom?.charAt(0)?.toUpperCase()}</span>
                       </div>
                     </td>
-
-                    {/* ── Colonne Nom ── */}
                     <td className="px-6 py-3">
                       <p className="font-semibold text-gray-800">{c.nom}</p>
                     </td>
-
-                    {/* ── Colonne Parti ── */}
                     <td className="px-6 py-3 text-sm text-gray-600 font-medium">{c.parti || "—"}</td>
-
                     <td className="px-6 py-3 text-center">
                       {c.age
                         ? <span className="inline-flex items-center text-xs font-semibold bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full">{c.age} ans</span>
@@ -528,24 +573,17 @@ export default function Candidats() {
 
 
 
-
-
-
-
-
-
-
-
 // // src/pages/admin/adminelection/Candidats.jsx
 // import React, { useState, useEffect, useRef } from "react";
 // import { Link, useParams, useNavigate } from "react-router-dom";
 // import Papa from "papaparse";
 // import {
-//   FiEdit, FiPlus, FiUpload, FiHome, FiBarChart2, FiSettings, FiLogOut,
-//   FiCalendar, FiUserCheck, FiTrash2, FiUsers, FiDownload, FiChevronDown,
+//   FiEdit, FiPlus, FiUpload,
+//   FiBarChart2, FiUserCheck, FiTrash2, FiUsers, FiDownload, FiChevronDown,
 //   FiChevronRight, FiCheck, FiAlertCircle, FiSearch
 // } from "react-icons/fi";
 // import api from "../../../services/api";
+// import AdminElectionSidebar from "../../../components/AdminElectionSidebar";
 
 // // Préfixe l'URL du serveur si la photo est un chemin relatif
 // const BASE_URL = "http://localhost:5000";
@@ -711,42 +749,7 @@ export default function Candidats() {
 //         </div>
 //       )}
 
-//       {/* ===== SIDEBAR ===== */}
-//       <aside className="w-64 bg-white/80 backdrop-blur border-r border-indigo-100 p-6 flex flex-col">
-//         <h1 className="text-2xl font-bold mb-10 text-indigo-700">🗳 eVote – Admin</h1>
-//         <nav className="flex-1 space-y-1">
-//           <Link to="/adminElectionDashboard"
-//             className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-sm font-medium">
-//             <FiHome className="text-base" /> Tableau de bord
-//           </Link>
-//           <Link to="/admin/adminelection/ElectionPage"
-//             className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-sm font-medium">
-//             <FiCalendar className="text-base" /> Mes élections
-//           </Link>
-//           {/* <Link to="/admin/adminelection/candidats"
-//             className="flex items-center gap-3 px-4 py-3 rounded-xl bg-indigo-100 text-indigo-700 font-semibold text-sm">
-//             <FiUsers className="text-base" /> Candidats
-//           </Link>
-//           <Link to="/admin/adminelection/electeurs"
-//             className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-sm font-medium">
-//             <FiUserCheck className="text-base" /> Électeurs
-//           </Link>
-//           <Link to="/admin/adminelection/resultats"
-//             className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 transition-all text-sm font-medium">
-//             <FiBarChart2 className="text-base" /> Résultats
-//           </Link> */}
-//         </nav>
-//         <div className="space-y-1 mt-6 pt-6 border-t border-gray-100">
-//           <Link to="/settings"
-//             className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-500 hover:bg-gray-50 transition-all text-sm font-medium">
-//             <FiSettings className="text-base" /> Paramètres
-//           </Link>
-//           <Link to="/logout"
-//             className="flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-50 hover:text-red-600 transition-all text-sm font-medium">
-//             <FiLogOut className="text-base" /> Déconnexion
-//           </Link>
-//         </div>
-//       </aside>
+//       <AdminElectionSidebar active="candidats" />
 
 //       {/* ===== MAIN ===== */}
 //       <main className="flex-1 p-8 overflow-y-auto">
