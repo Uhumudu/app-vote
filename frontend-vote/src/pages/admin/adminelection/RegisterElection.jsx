@@ -21,6 +21,16 @@ const DUREE_OPTIONS = [
   { value: 10080, label: "7 jours" },
 ];
 
+// ✅ Helper : convertit une Date JS en "YYYY-MM-DD HH:mm:00" EN HEURE LOCALE
+// (toISOString() convertit en UTC et décale l'heure selon le fuseau → bug)
+const toLocalMySQL = (date) => {
+  const pad = n => String(n).padStart(2, "0");
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    ` ${pad(date.getHours())}:${pad(date.getMinutes())}:00`
+  );
+};
+
 export default function RegisterElection() {
   const [submitted, setSubmitted] = useState(false);
   const [loading,   setLoading]   = useState(false);
@@ -48,6 +58,7 @@ export default function RegisterElection() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!isListe && new Date(formData.endDate) <= new Date(formData.startDate)) {
       alert("La date de fin doit être supérieure à la date de début !");
       return;
@@ -56,12 +67,18 @@ export default function RegisterElection() {
       alert("Le nombre de sièges doit être supérieur à 0.");
       return;
     }
+
     try {
       setLoading(true);
+
+      // ✅ Calcul des dates EN HEURE LOCALE (pas de conversion UTC)
       const endDate = isListe
-        ? new Date(new Date(formData.startDate).getTime() + formData.dureeTourMinutes * 60000)
-            .toISOString().slice(0, 16)
-        : formData.endDate;
+        ? (() => {
+            const d = new Date(formData.startDate);
+            d.setMinutes(d.getMinutes() + formData.dureeTourMinutes);
+            return toLocalMySQL(d);
+          })()
+        : toLocalMySQL(new Date(formData.endDate));
 
       await api.post("/auth/register-and-create-election", {
         ...formData,
@@ -69,6 +86,7 @@ export default function RegisterElection() {
         dureeTourMinutes: isListe ? formData.dureeTourMinutes : null,
         nbSieges:         isListe ? formData.nbSieges         : null,
       });
+
       setSubmitted(true);
     } catch (err) {
       console.error("Erreur lors de la soumission:", err.response || err);
@@ -79,8 +97,11 @@ export default function RegisterElection() {
   };
 
   const dateFinTour1 = isListe && formData.startDate
-    ? new Date(new Date(formData.startDate).getTime() + formData.dureeTourMinutes * 60000)
-        .toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    ? (() => {
+        const d = new Date(formData.startDate);
+        d.setMinutes(d.getMinutes() + formData.dureeTourMinutes);
+        return d.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+      })()
     : null;
 
   const bonusSieges = isListe && formData.nbSieges ? Math.floor(formData.nbSieges / 2) : 0;
@@ -127,18 +148,9 @@ export default function RegisterElection() {
               <span className="nav-logo-text">EVote</span>
             </a>
             <div className="nav-actions">
-              <a href="/" className="nav-link">
-                <FiHome size={14} />
-                <span>Accueil</span>
-              </a>
-              <a href="/login" className="nav-link">
-                <FiLogIn size={14} />
-                <span>Connexion</span>
-              </a>
-              <a href="/creer-election" className="nav-link nav-link--active">
-                <FiPlusCircle size={14} />
-                <span>Créer une élection</span>
-              </a>
+              <a href="/" className="nav-link"><FiHome size={14} /><span>Accueil</span></a>
+              <a href="/login" className="nav-link"><FiLogIn size={14} /><span>Connexion</span></a>
+              <a href="/creer-election" className="nav-link nav-link--active"><FiPlusCircle size={14} /><span>Créer une élection</span></a>
             </div>
           </div>
         </nav>
@@ -353,39 +365,16 @@ const styles = `
   .bg-orb-1{width:560px;height:560px;background:radial-gradient(circle,rgba(99,102,241,0.13) 0%,transparent 70%);top:-180px;left:-180px;}
   .bg-orb-2{width:420px;height:420px;background:radial-gradient(circle,rgba(79,70,229,0.09) 0%,transparent 70%);bottom:-120px;right:-100px;}
   .bg-grid{position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(99,102,241,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,0.04) 1px,transparent 1px);background-size:44px 44px;}
-
-  /* ===== NAVBAR ===== */
-  .reg-navbar{
-    position:relative;z-index:10;
-    background:rgba(255,255,255,0.97);
-    backdrop-filter:blur(12px);
-    border-bottom:1px solid rgba(99,102,241,0.12);
-    box-shadow:0 1px 16px rgba(0,0,0,0.05);
-  }
-  .reg-navbar-inner{
-    max-width:1200px;margin:0 auto;
-    padding:0 40px;height:62px;
-    display:flex;align-items:center;justify-content:space-between;
-  }
+  .reg-navbar{position:relative;z-index:10;background:rgba(255,255,255,0.97);backdrop-filter:blur(12px);border-bottom:1px solid rgba(99,102,241,0.12);box-shadow:0 1px 16px rgba(0,0,0,0.05);}
+  .reg-navbar-inner{max-width:1200px;margin:0 auto;padding:0 40px;height:62px;display:flex;align-items:center;justify-content:space-between;}
   .nav-logo{display:flex;align-items:center;gap:9px;text-decoration:none;}
   .nav-logo-icon{font-size:20px;}
   .nav-logo-text{font-size:19px;font-weight:900;color:var(--indigo-600);letter-spacing:-0.5px;}
   .nav-actions{display:flex;align-items:center;gap:8px;}
-  .nav-link{
-    display:inline-flex;align-items:center;gap:7px;
-    font-size:13.5px;font-weight:600;color:var(--gray-500);
-    text-decoration:none;padding:8px 16px;
-    border-radius:9px;border:none;background:transparent;
-    transition:background .15s,color .15s,transform .15s;
-    font-family:'Outfit',sans-serif;cursor:pointer;
-  }
+  .nav-link{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;color:var(--gray-500);text-decoration:none;padding:8px 16px;border-radius:9px;border:none;background:transparent;transition:background .15s,color .15s,transform .15s;font-family:'Outfit',sans-serif;cursor:pointer;}
   .nav-link:hover{background:var(--indigo-50);color:var(--indigo-600);transform:translateY(-1px);}
-  .nav-link--active{
-    background:var(--indigo-600);color:white;
-    box-shadow:0 4px 12px rgba(79,70,229,0.25);
-  }
+  .nav-link--active{background:var(--indigo-600);color:white;box-shadow:0 4px 12px rgba(79,70,229,0.25);}
   .nav-link--active:hover{background:var(--indigo-700);color:white;}
-
   .register-main{position:relative;z-index:1;padding:40px 24px 60px;display:flex;align-items:flex-start;justify-content:center;}
   .register-card{width:100%;max-width:1040px;background:rgba(255,255,255,0.92);backdrop-filter:blur(16px);border:1px solid rgba(99,102,241,0.13);border-radius:28px;box-shadow:0 4px 6px rgba(0,0,0,0.03),0 24px 64px rgba(79,70,229,0.10);display:grid;grid-template-columns:380px 1fr;overflow:hidden;}
   .reg-image-panel{background:linear-gradient(160deg,var(--indigo-600) 0%,#4338ca 100%);padding:40px 32px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;position:relative;overflow:hidden;}
@@ -482,28 +471,13 @@ const styles = `
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // // src/pages/admin/adminelection/RegisterElection.jsx
 // import { useState } from "react";
 // import { motion } from "framer-motion";
 // import {
 //   FiUser, FiMail, FiLock, FiCalendar, FiList,
-//   FiAlignLeft, FiCheckCircle, FiArrowRight, FiType, FiClock, FiInfo, FiUsers
+//   FiAlignLeft, FiCheckCircle, FiArrowRight, FiType, FiClock, FiInfo, FiUsers,
+//   FiHome, FiPlusCircle, FiLogIn
 // } from "react-icons/fi";
 // import api from "../../../services/api";
 // import Election from './elct.webp';
@@ -618,12 +592,27 @@ const styles = `
 //         <div className="bg-orb bg-orb-2" />
 //         <div className="bg-grid" />
 
+//         {/* ===== NAVBAR ===== */}
 //         <nav className="reg-navbar">
-//           <div className="nav-logo"><span>🗳</span><span className="nav-logo-text">eVote</span></div>
-//           <div className="nav-actions">
-//             <a href="/" className="nav-btn-ghost">🏠 Accueil</a>
-//             <a href="/login" className="nav-btn-ghost">Connexion</a>
-//             <a href="/creer-election" className="nav-btn-filled">Créer une élection <FiArrowRight size={14} /></a>
+//           <div className="reg-navbar-inner">
+//             <a href="/" className="nav-logo">
+//               <span className="nav-logo-icon">🗳</span>
+//               <span className="nav-logo-text">EVote</span>
+//             </a>
+//             <div className="nav-actions">
+//               <a href="/" className="nav-link">
+//                 <FiHome size={14} />
+//                 <span>Accueil</span>
+//               </a>
+//               <a href="/login" className="nav-link">
+//                 <FiLogIn size={14} />
+//                 <span>Connexion</span>
+//               </a>
+//               <a href="/creer-election" className="nav-link nav-link--active">
+//                 <FiPlusCircle size={14} />
+//                 <span>Créer une élection</span>
+//               </a>
+//             </div>
 //           </div>
 //         </nav>
 
@@ -637,7 +626,7 @@ const styles = `
 //               <div className="img-glow" />
 //               <img src={Election} alt="Création d'élection" className="reg-img" />
 //               <div className="img-overlay">
-//                 <div className="img-badge">🗳 eVote Platform</div>
+//                 <div className="img-badge">🗳 EVote Platform</div>
 //                 <p className="img-quote">"Organisez des élections transparentes, sécurisées et accessibles à tous."</p>
 //                 <div className="img-features">
 //                   {["Chiffrement des données", "Résultats en temps réel", "Multi-rôles"].map((f, i) => (
@@ -681,7 +670,6 @@ const styles = `
 
 //                     <Field icon={<FiType size={15}/>} label="Nom de l'élection" name="electionName" value={formData.electionName} onChange={handleChange} placeholder="Ex : Élection du bureau étudiant 2026" focused={focused} setFocused={setFocused} />
 
-//                     {/* Type */}
 //                     <div className="field-group">
 //                       <label className="field-label"><FiList size={13}/> Type de scrutin</label>
 //                       <select name="electionType" value={formData.electionType} onChange={handleChange} required
@@ -694,7 +682,6 @@ const styles = `
 //                       </select>
 //                     </div>
 
-//                     {/* Date de début */}
 //                     <div className="field-group">
 //                       <label className="field-label"><FiCalendar size={13}/> Date de début</label>
 //                       <input type="datetime-local" name="startDate" value={formData.startDate}
@@ -703,7 +690,6 @@ const styles = `
 //                         className={`field-input ${focused === "startDate" ? "field-input--focused" : ""}`} />
 //                     </div>
 
-//                     {/* Date de fin — non-LISTE */}
 //                     {!isListe && (
 //                       <div className="field-group">
 //                         <label className="field-label"><FiCalendar size={13}/> Date de fin</label>
@@ -714,11 +700,8 @@ const styles = `
 //                       </div>
 //                     )}
 
-//                     {/* Champs LISTE */}
 //                     {isListe && (
 //                       <div className="fields-stack">
-
-//                         {/* Durée + Sièges côte à côte */}
 //                         <div className="fields-grid-2">
 //                           <div className="field-group">
 //                             <label className="field-label"><FiClock size={13}/> Durée par tour</label>
@@ -740,7 +723,6 @@ const styles = `
 //                           </div>
 //                         </div>
 
-//                         {/* Aperçu répartition sièges */}
 //                         {formData.nbSieges > 0 && (
 //                           <div className="apercu-box">
 //                             <p className="apercu-title">🏆 Répartition des sièges</p>
@@ -761,7 +743,6 @@ const styles = `
 //                           </div>
 //                         )}
 
-//                         {/* Aperçu calendrier */}
 //                         {dateFinTour1 && (
 //                           <div className="apercu-box">
 //                             <p className="apercu-title">📅 Calendrier</p>
@@ -789,7 +770,6 @@ const styles = `
 //                       </div>
 //                     )}
 
-//                     {/* Description */}
 //                     <div className="field-group">
 //                       <label className="field-label"><FiAlignLeft size={13}/> Description</label>
 //                       <textarea name="description" value={formData.description} onChange={handleChange}
@@ -846,14 +826,39 @@ const styles = `
 //   .bg-orb-1{width:560px;height:560px;background:radial-gradient(circle,rgba(99,102,241,0.13) 0%,transparent 70%);top:-180px;left:-180px;}
 //   .bg-orb-2{width:420px;height:420px;background:radial-gradient(circle,rgba(79,70,229,0.09) 0%,transparent 70%);bottom:-120px;right:-100px;}
 //   .bg-grid{position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(99,102,241,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,0.04) 1px,transparent 1px);background-size:44px 44px;}
-//   .reg-navbar{position:relative;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:18px 40px;background:rgba(255,255,255,0.75);backdrop-filter:blur(12px);border-bottom:1px solid rgba(99,102,241,0.10);}
-//   .nav-logo{display:flex;align-items:center;gap:10px;font-size:20px;}
-//   .nav-logo-text{font-weight:800;color:var(--indigo-600);letter-spacing:-0.4px;}
-//   .nav-actions{display:flex;align-items:center;gap:10px;}
-//   .nav-btn-ghost{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;color:var(--indigo-600);text-decoration:none;padding:8px 18px;border-radius:9px;border:1.5px solid var(--indigo-200);background:transparent;transition:background .15s,transform .15s;font-family:'Outfit',sans-serif;}
-//   .nav-btn-ghost:hover{background:var(--indigo-50);transform:translateY(-1px);}
-//   .nav-btn-filled{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:600;color:white;text-decoration:none;padding:9px 20px;border-radius:10px;background:var(--indigo-600);box-shadow:0 4px 12px rgba(79,70,229,0.28);transition:background .18s,transform .15s,box-shadow .18s;font-family:'Outfit',sans-serif;}
-//   .nav-btn-filled:hover{background:var(--indigo-700);transform:translateY(-1px);box-shadow:0 6px 18px rgba(79,70,229,0.35);}
+
+//   /* ===== NAVBAR ===== */
+//   .reg-navbar{
+//     position:relative;z-index:10;
+//     background:rgba(255,255,255,0.97);
+//     backdrop-filter:blur(12px);
+//     border-bottom:1px solid rgba(99,102,241,0.12);
+//     box-shadow:0 1px 16px rgba(0,0,0,0.05);
+//   }
+//   .reg-navbar-inner{
+//     max-width:1200px;margin:0 auto;
+//     padding:0 40px;height:62px;
+//     display:flex;align-items:center;justify-content:space-between;
+//   }
+//   .nav-logo{display:flex;align-items:center;gap:9px;text-decoration:none;}
+//   .nav-logo-icon{font-size:20px;}
+//   .nav-logo-text{font-size:19px;font-weight:900;color:var(--indigo-600);letter-spacing:-0.5px;}
+//   .nav-actions{display:flex;align-items:center;gap:8px;}
+//   .nav-link{
+//     display:inline-flex;align-items:center;gap:7px;
+//     font-size:13.5px;font-weight:600;color:var(--gray-500);
+//     text-decoration:none;padding:8px 16px;
+//     border-radius:9px;border:none;background:transparent;
+//     transition:background .15s,color .15s,transform .15s;
+//     font-family:'Outfit',sans-serif;cursor:pointer;
+//   }
+//   .nav-link:hover{background:var(--indigo-50);color:var(--indigo-600);transform:translateY(-1px);}
+//   .nav-link--active{
+//     background:var(--indigo-600);color:white;
+//     box-shadow:0 4px 12px rgba(79,70,229,0.25);
+//   }
+//   .nav-link--active:hover{background:var(--indigo-700);color:white;}
+
 //   .register-main{position:relative;z-index:1;padding:40px 24px 60px;display:flex;align-items:flex-start;justify-content:center;}
 //   .register-card{width:100%;max-width:1040px;background:rgba(255,255,255,0.92);backdrop-filter:blur(16px);border:1px solid rgba(99,102,241,0.13);border-radius:28px;box-shadow:0 4px 6px rgba(0,0,0,0.03),0 24px 64px rgba(79,70,229,0.10);display:grid;grid-template-columns:380px 1fr;overflow:hidden;}
 //   .reg-image-panel{background:linear-gradient(160deg,var(--indigo-600) 0%,#4338ca 100%);padding:40px 32px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;position:relative;overflow:hidden;}
@@ -885,8 +890,6 @@ const styles = `
 //   input[type="datetime-local"]{color-scheme:light;}
 //   input[type="number"]{-moz-appearance:textfield;}
 //   input[type="number"]::-webkit-outer-spin-button,input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;}
-
-//   /* APERÇU */
 //   .apercu-box{background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
 //   .apercu-title{font-size:12px;font-weight:700;color:var(--indigo-600);text-transform:uppercase;letter-spacing:.5px;}
 //   .apercu-sieges{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
@@ -899,18 +902,12 @@ const styles = `
 //   .apercu-row--muted{opacity:.65;}
 //   .apercu-val{font-weight:600;color:var(--indigo-700);}
 //   .apercu-val--accent{color:var(--indigo-600);}
-
-//   /* INFO BOX */
 //   .info-box{display:flex;align-items:flex-start;gap:8px;background:var(--amber-50);border:1px solid #fde68a;border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--amber-600);line-height:1.6;}
-
-//   /* SUBMIT */
 //   .submit-btn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;padding:14px;background:var(--indigo-600);color:white;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:'Outfit',sans-serif;cursor:pointer;box-shadow:0 4px 14px rgba(79,70,229,0.30);transition:background .2s,transform .15s,box-shadow .2s;margin-top:4px;}
 //   .submit-btn:hover:not(:disabled){background:var(--indigo-700);transform:translateY(-1px);box-shadow:0 6px 20px rgba(79,70,229,0.38);}
 //   .submit-btn--loading{opacity:.8;cursor:not-allowed;}
 //   .btn-spinner{width:18px;height:18px;animation:spin .7s linear infinite;flex-shrink:0;}
 //   @keyframes spin{to{transform:rotate(360deg);}}
-
-//   /* SUCCÈS */
 //   .success-screen{display:flex;align-items:center;justify-content:center;padding:40px 16px;}
 //   .success-card{background:rgba(255,255,255,0.93);backdrop-filter:blur(16px);border:1px solid rgba(34,197,94,0.20);border-radius:24px;padding:52px 44px;max-width:460px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(34,197,94,0.10);position:relative;z-index:1;}
 //   .success-icon-wrap{width:72px;height:72px;background:var(--green-50);border:2px solid rgba(34,197,94,0.25);border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--green-500);margin:0 auto 20px;}
@@ -918,11 +915,18 @@ const styles = `
 //   .success-desc{font-size:14.5px;color:var(--gray-500);line-height:1.65;margin-bottom:28px;}
 //   .success-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 28px;background:var(--indigo-600);color:white;text-decoration:none;border-radius:11px;font-size:14.5px;font-weight:600;font-family:'Outfit',sans-serif;box-shadow:0 4px 14px rgba(79,70,229,0.28);transition:background .18s,transform .15s;}
 //   .success-btn:hover{background:var(--indigo-700);transform:translateY(-1px);}
-
-//   /* RESPONSIVE */
-//   @media(max-width:820px){.register-card{grid-template-columns:1fr;}.reg-image-panel{display:none;}.reg-form-panel{max-height:none;padding:32px 24px;}.fields-grid-2{grid-template-columns:1fr;}}
-//   @media(max-width:480px){.reg-navbar{padding:14px 20px;}.register-main{padding:24px 12px 48px;}}
+//   @media(max-width:820px){
+//     .register-card{grid-template-columns:1fr;}
+//     .reg-image-panel{display:none;}
+//     .reg-form-panel{max-height:none;padding:32px 24px;}
+//     .fields-grid-2{grid-template-columns:1fr;}
+//     .reg-navbar-inner{padding:0 20px;}
+//   }
+//   @media(max-width:480px){
+//     .register-main{padding:24px 12px 48px;}
+//     .nav-link span{display:none;}
+//     .nav-link{padding:8px 12px;}
+//   }
 // `;
-
 
 
