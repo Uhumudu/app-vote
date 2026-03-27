@@ -369,8 +369,8 @@ export default function Resultats() {
                     <FiTrendingUp className="text-emerald-600 text-xl" />
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Participation</p>
-                    <p className="text-3xl font-black text-emerald-600">{resultats.tauxParticipation}%</p>
+                    <p className="text-xs text-purple-400 font-semibold uppercase tracking-wide">Participation</p>
+                    <p className="text-3xl font-black text-blue-600">{resultats.tauxParticipation}%</p>
                   </div>
                 </div>
                 <div className="bg-gray-100 rounded-full h-2.5 overflow-hidden">

@@ -199,7 +199,7 @@ export default function ElectionPage() {
                         <div className="flex justify-center items-center gap-1.5 flex-wrap">
                           {canEdit(election.statut) && (
                             <Link to={`/admin/adminelection/modifier-election/${election.id}`}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 active:scale-95 transition-all text-xs font-bold">
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-purple-500 text-white rounded-lg hover:bg-amber-600 active:scale-95 transition-all text-xs font-bold">
                               <FiEdit size={11} /> Modifier
                             </Link>
                           )}
