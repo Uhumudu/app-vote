@@ -25,6 +25,7 @@ import superadminElectionsRoutes       from "./routes/superadmin_elections.route
 import adminElectionSettingsRoutes     from "./routes/adminElectionSettings.routes.js";
 import superAdminSettingsRoutes        from "./routes/superAdminSettings.routes.js";
 import statistiquesSuperAdminRoutes    from "./routes/statistiques.routes.js";
+import campayRoutes from "./routes/campay.routes.js";
 
 // 🔹 Jobs
 import { checkDepouillementAuto } from "./jobs/scrutin_liste.job.js";
@@ -82,9 +83,10 @@ app.post("/api/uploads/photo", (req, res) => {
 // 🔹 Routes API
 // 🔹 Routes API
 app.use("/api/auth",         authRoutes);
+app.use("/api/campay", campayRoutes);       //Campay
 app.use("/api/utilisateurs", utilisateursRoutes);
-app.use("/api",              scrutinListeRoutes);      // ← DÉPLACÉ ICI en premier
-app.use("/api/elections",    electionRoutes);          // ← après
+app.use("/api",              scrutinListeRoutes);      
+app.use("/api/elections",    electionRoutes);          
 app.use("/api",              candidatRoutes);
 app.use("/api",              electeurRoutes);
 app.use("/api",              resultatRoutes);
@@ -95,28 +97,6 @@ app.use("/api",              superadminElectionsRoutes);
 app.use("/api/admin-election/settings", adminElectionSettingsRoutes);
 app.use("/api/super-admin/settings",    superAdminSettingsRoutes);
 app.use("/api/super-admin/statistiques", statistiquesSuperAdminRoutes);
-
-
-
-
-
-
-
-
-// app.use("/api/auth",          authRoutes);
-// app.use("/api/utilisateurs",  utilisateursRoutes);
-// app.use("/api/elections",     electionRoutes);
-// app.use("/api",               candidatRoutes);
-// app.use("/api",               electeurRoutes);
-// app.use("/api",               resultatRoutes);
-// app.use("/api",               dashboardRoutes);
-// app.use("/api",               dashsuperRoutes);
-// app.use("/api",               statistiquesRoutes);
-// app.use("/api",               scrutinListeRoutes);
-// app.use("/api",               superadminElectionsRoutes);
-// app.use("/api/admin-election/settings", adminElectionSettingsRoutes);
-// app.use("/api/super-admin/settings",    superAdminSettingsRoutes);
-// app.use("/api/super-admin/statistiques", statistiquesSuperAdminRoutes);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.get("/", (req, res) => res.send("🚀 API eVote fonctionne !"));
@@ -161,6 +141,11 @@ app.use((err, req, res, next) => {
 // 🔹 Démarrage
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Serveur + Socket.IO lancé sur ${PORT}`));
+
+
+
+
+
 
 
 

@@ -1,6 +1,10 @@
 // src/pages/admin/adminelection/CreerElection.jsx
 import React, { useState } from "react";
-import { FiSave, FiArrowLeft, FiCalendar, FiClock, FiInfo, FiUsers } from "react-icons/fi";
+import {
+  FiSave, FiArrowLeft, FiCalendar, FiClock,
+  FiInfo, FiUsers, FiSmartphone, FiCheckCircle,
+  FiXCircle, FiLoader
+} from "react-icons/fi";
 import { Link } from "react-router-dom";
 import api from "../../../services/api";
 import { ToastContainer, toast } from "react-toastify";
@@ -8,6 +12,7 @@ import "react-toastify/dist/ReactToastify.css";
 import Election from './Election.webp';
 import AdminElectionSidebar from "../../../components/AdminElectionSidebar";
 
+// ─── Constantes ──────────────────────────────────────────────────────────────
 const DUREE_OPTIONS = [
   { value: 30,    label: "30 minutes" },
   { value: 60,    label: "1 heure" },
@@ -21,13 +26,14 @@ const DUREE_OPTIONS = [
 ];
 
 const TYPE_INFO = {
-  UNINOMINAL: { emoji: "1️⃣", title: "Uninominal",              desc: "Chaque électeur vote pour un seul candidat. Le candidat avec le plus de voix gagne." },
-  BINOMINAL:  { emoji: "2️⃣", title: "Binominal",              desc: "Chaque électeur vote pour exactement 2 candidats. Utile pour élire un titulaire et son suppléant." },
+  UNINOMINAL: { emoji: "1️⃣", title: "Uninominal",               desc: "Chaque électeur vote pour un seul candidat. Le candidat avec le plus de voix gagne." },
+  BINOMINAL:  { emoji: "2️⃣", title: "Binominal",               desc: "Chaque électeur vote pour exactement 2 candidats. Utile pour élire un titulaire et son suppléant." },
   LISTE:      { emoji: "📋", title: "Liste — Tours successifs", desc: "Vote pour une liste complète. Une majorité absolue (> 50%) est nécessaire. Sans vainqueur, un nouveau tour s'ouvre automatiquement." },
 };
 
-// ✅ Helper : convertit une Date JS en chaîne "YYYY-MM-DD HH:mm:00" EN HEURE LOCALE
-// (sans passer par toISOString qui convertit en UTC et décale l'heure)
+const FRAIS_ELECTION = 500; // XAF
+
+// ─── Helper : convertit une Date JS → "YYYY-MM-DD HH:mm:00" en heure locale ─
 const toLocalMySQL = (date) => {
   const pad = n => String(n).padStart(2, "0");
   return (
@@ -36,7 +42,302 @@ const toLocalMySQL = (date) => {
   );
 };
 
+// ─── Composant Modal Paiement CamPay ─────────────────────────────────────────
+function ModalPaiement({ etape, telephone, setTelephone, msgPaiement, campayRef, onPayer, onAnnuler, onReessayer }) {
+  if (!["telephone", "attente", "succes", "erreur"].includes(etape)) return null;
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0,
+      background: "rgba(15, 23, 42, 0.65)",
+      backdropFilter: "blur(6px)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 1000,
+      padding: "16px",
+    }}>
+      <div style={{
+        background: "#fff",
+        borderRadius: "20px",
+        padding: "36px 32px",
+        width: "100%",
+        maxWidth: "420px",
+        boxShadow: "0 24px 80px rgba(0,0,0,0.22)",
+        position: "relative",
+        overflow: "hidden",
+      }}>
+        {/* Bande décorative top */}
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: "4px",
+          background: etape === "succes"
+            ? "linear-gradient(90deg, #22c55e, #16a34a)"
+            : etape === "erreur"
+            ? "linear-gradient(90deg, #ef4444, #dc2626)"
+            : "linear-gradient(90deg, #6366f1, #4f46e5)",
+        }} />
+
+        {/* ── Saisie téléphone ── */}
+        {etape === "telephone" && (
+          <>
+            <div style={{ textAlign: "center", marginBottom: "24px" }}>
+              <div style={{
+                width: "60px", height: "60px", borderRadius: "16px",
+                background: "linear-gradient(135deg, #6366f1, #4f46e5)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                margin: "0 auto 16px",
+                boxShadow: "0 8px 24px rgba(99,102,241,0.35)",
+              }}>
+                <FiSmartphone size={26} color="white" />
+              </div>
+              <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#1e1b4b", margin: "0 0 6px" }}>
+                Paiement des frais
+              </h3>
+              <p style={{ fontSize: "13px", color: "#64748b", margin: 0 }}>
+                Des frais de{" "}
+                <strong style={{ color: "#6366f1" }}>{FRAIS_ELECTION} XAF</strong>{" "}
+                sont requis pour créer une élection.
+              </p>
+            </div>
+
+            <div style={{ marginBottom: "20px" }}>
+              <label style={{
+                display: "block", fontSize: "11px", fontWeight: 700,
+                color: "#64748b", textTransform: "uppercase", letterSpacing: ".7px",
+                marginBottom: "8px",
+              }}>
+                Numéro MTN / Orange Money
+              </label>
+              <div style={{
+                display: "flex", border: "1.5px solid #e0e7ff",
+                borderRadius: "12px", overflow: "hidden",
+                transition: "border-color .2s",
+              }}>
+                <span style={{
+                  padding: "12px 14px", background: "#eef2ff",
+                  color: "#6366f1", fontWeight: 700, fontSize: "14px",
+                  borderRight: "1.5px solid #e0e7ff", whiteSpace: "nowrap",
+                }}>
+                  +237
+                </span>
+                <input
+                  type="tel"
+                  maxLength={9}
+                  placeholder="6XXXXXXXX"
+                  value={telephone}
+                  onChange={e => setTelephone(e.target.value.replace(/\D/g, ""))}
+                  autoFocus
+                  style={{
+                    flex: 1, border: "none", outline: "none",
+                    padding: "12px 14px", fontSize: "15px",
+                    fontFamily: "inherit", color: "#1e293b",
+                    background: "transparent",
+                    letterSpacing: "1px",
+                  }}
+                />
+              </div>
+              <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "6px" }}>
+                Vous recevrez une notification sur ce numéro pour confirmer.
+              </p>
+            </div>
+
+            {/* Opérateurs acceptés */}
+            <div style={{
+              display: "flex", gap: "8px", marginBottom: "24px",
+            }}>
+              {[
+                { label: "MTN MoMo", color: "#f59e0b", bg: "#fffbeb" },
+                { label: "Orange Money", color: "#f97316", bg: "#fff7ed" },
+              ].map(op => (
+                <div key={op.label} style={{
+                  flex: 1, padding: "8px 10px", borderRadius: "10px",
+                  background: op.bg, border: `1px solid ${op.color}30`,
+                  textAlign: "center", fontSize: "12px",
+                  fontWeight: 600, color: op.color,
+                }}>
+                  ✓ {op.label}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={onAnnuler}
+                style={{
+                  flex: 1, padding: "12px", borderRadius: "12px",
+                  border: "1.5px solid #e2e8f0", background: "#fff",
+                  color: "#64748b", fontSize: "14px", fontWeight: 600,
+                  cursor: "pointer", fontFamily: "inherit",
+                  transition: "all .2s",
+                }}
+                onMouseEnter={e => e.target.style.background = "#f8fafc"}
+                onMouseLeave={e => e.target.style.background = "#fff"}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={onPayer}
+                disabled={telephone.length !== 9}
+                style={{
+                  flex: 2, padding: "12px", borderRadius: "12px",
+                  border: "none",
+                  background: telephone.length === 9
+                    ? "linear-gradient(135deg, #6366f1, #4f46e5)"
+                    : "#e2e8f0",
+                  color: telephone.length === 9 ? "#fff" : "#94a3b8",
+                  fontSize: "14px", fontWeight: 700,
+                  cursor: telephone.length === 9 ? "pointer" : "not-allowed",
+                  fontFamily: "inherit",
+                  boxShadow: telephone.length === 9 ? "0 4px 14px rgba(99,102,241,0.35)" : "none",
+                  transition: "all .2s",
+                }}
+              >
+                💳 Payer {FRAIS_ELECTION} XAF
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Attente confirmation ── */}
+        {etape === "attente" && (
+          <div style={{ textAlign: "center", padding: "8px 0" }}>
+            <div style={{
+              width: "72px", height: "72px", borderRadius: "50%",
+              background: "#eef2ff", border: "3px solid #c7d2fe",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              margin: "0 auto 20px",
+              animation: "pulse 2s infinite",
+            }}>
+              <FiLoader size={30} color="#6366f1" style={{ animation: "spin 1s linear infinite" }} />
+            </div>
+            <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#1e1b4b", marginBottom: "10px" }}>
+              En attente de confirmation
+            </h3>
+            <p style={{ fontSize: "13.5px", color: "#64748b", lineHeight: 1.6, marginBottom: "20px" }}>
+              Une notification a été envoyée sur votre téléphone.<br />
+              <strong style={{ color: "#6366f1" }}>Entrez votre PIN Mobile Money</strong> pour confirmer.
+            </p>
+            <div style={{
+              background: "#f8fafc", borderRadius: "12px", padding: "14px 16px",
+              border: "1px solid #e2e8f0", marginBottom: "20px",
+            }}>
+              <p style={{ fontSize: "11px", color: "#94a3b8", margin: "0 0 4px", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>
+                Référence
+              </p>
+              <p style={{ fontSize: "13px", color: "#475569", fontWeight: 600, margin: 0, wordBreak: "break-all" }}>
+                {campayRef}
+              </p>
+            </div>
+            {/* Barre de progression animée */}
+            <div style={{ height: "4px", background: "#e0e7ff", borderRadius: "4px", overflow: "hidden" }}>
+              <div style={{
+                height: "100%", width: "40%",
+                background: "linear-gradient(90deg, #6366f1, #818cf8)",
+                borderRadius: "4px",
+                animation: "progress 2s ease-in-out infinite",
+              }} />
+            </div>
+            <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "8px" }}>
+              Vérification automatique en cours… (60s max)
+            </p>
+          </div>
+        )}
+
+        {/* ── Succès ── */}
+        {etape === "succes" && (
+          <div style={{ textAlign: "center", padding: "8px 0" }}>
+            <div style={{
+              width: "72px", height: "72px", borderRadius: "50%",
+              background: "#f0fdf4", border: "3px solid #bbf7d0",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              margin: "0 auto 20px",
+            }}>
+              <FiCheckCircle size={32} color="#22c55e" />
+            </div>
+            <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#15803d", marginBottom: "10px" }}>
+              Paiement confirmé !
+            </h3>
+            <p style={{ fontSize: "13.5px", color: "#64748b", lineHeight: 1.6, marginBottom: "24px" }}>
+              Votre élection a été créée avec succès et est en attente de validation par le Super Admin.
+            </p>
+            <button
+              onClick={onAnnuler}
+              style={{
+                padding: "12px 28px", borderRadius: "12px",
+                background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                color: "#fff", border: "none", fontSize: "14px", fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+                boxShadow: "0 4px 14px rgba(34,197,94,0.35)",
+              }}
+            >
+              Voir mes élections →
+            </button>
+          </div>
+        )}
+
+        {/* ── Erreur ── */}
+        {etape === "erreur" && (
+          <div style={{ textAlign: "center", padding: "8px 0" }}>
+            <div style={{
+              width: "72px", height: "72px", borderRadius: "50%",
+              background: "#fef2f2", border: "3px solid #fecaca",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              margin: "0 auto 20px",
+            }}>
+              <FiXCircle size={32} color="#ef4444" />
+            </div>
+            <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#dc2626", marginBottom: "10px" }}>
+              Paiement échoué
+            </h3>
+            <p style={{ fontSize: "13.5px", color: "#64748b", lineHeight: 1.6, marginBottom: "24px" }}>
+              {msgPaiement || "Le paiement a échoué ou le délai a été dépassé."}
+            </p>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+              <button
+                onClick={onAnnuler}
+                style={{
+                  padding: "12px 20px", borderRadius: "12px",
+                  border: "1.5px solid #e2e8f0", background: "#fff",
+                  color: "#64748b", fontSize: "14px", fontWeight: 600,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                Fermer
+              </button>
+              <button
+                onClick={onReessayer}
+                style={{
+                  padding: "12px 20px", borderRadius: "12px",
+                  background: "linear-gradient(135deg, #6366f1, #4f46e5)",
+                  color: "#fff", border: "none", fontSize: "14px", fontWeight: 700,
+                  cursor: "pointer", fontFamily: "inherit",
+                  boxShadow: "0 4px 14px rgba(99,102,241,0.35)",
+                }}
+              >
+                Réessayer
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.3); }
+          50% { box-shadow: 0 0 0 12px rgba(99,102,241,0); }
+        }
+        @keyframes progress {
+          0%   { transform: translateX(-100%); }
+          50%  { transform: translateX(150%); }
+          100% { transform: translateX(400%); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── Composant principal ──────────────────────────────────────────────────────
 export default function CreerElection() {
+  // ── State formulaire
   const [form, setForm] = useState({
     title: "", description: "", type: "UNINOMINAL",
     startDate: "", endDate: "",
@@ -44,8 +345,27 @@ export default function CreerElection() {
   });
   const [loading, setLoading] = useState(false);
 
-  const isListe = form.type === "LISTE";
+  // ── State paiement CamPay
+  const [etapePaiement, setEtapePaiement] = useState(""); // "" | "telephone" | "attente" | "succes" | "erreur"
+  const [telephone,     setTelephone]     = useState("");
+  const [campayRef,     setCampayRef]     = useState(null);
+  const [msgPaiement,   setMsgPaiement]   = useState("");
 
+  const isListe  = form.type === "LISTE";
+  const typeInfo = TYPE_INFO[form.type];
+
+  const bonusSieges = isListe && form.nbSieges ? Math.floor(form.nbSieges / 2) : 0;
+  const resteSieges = isListe && form.nbSieges ? form.nbSieges - bonusSieges   : 0;
+
+  const dateFinTour1 = isListe && form.startDate
+    ? (() => {
+        const d = new Date(form.startDate);
+        d.setMinutes(d.getMinutes() + form.dureeTourMinutes);
+        return d.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+      })()
+    : null;
+
+  // ── Handlers formulaire
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({
@@ -56,72 +376,129 @@ export default function CreerElection() {
     }));
   };
 
-  const handleSubmit = async (e) => {
+  // ── ÉTAPE 1 : Valider le formulaire → ouvrir modal téléphone
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) { toast.error("Vous devez être connecté !"); setLoading(false); return; }
 
-      if (!isListe && new Date(form.endDate) <= new Date(form.startDate)) {
-        toast.error("La date de fin doit être postérieure à la date de début.");
-        setLoading(false); return;
-      }
-      if (isListe && (!form.nbSieges || form.nbSieges < 1)) {
-        toast.error("Le nombre de sièges doit être supérieur à 0.");
-        setLoading(false); return;
-      }
+    if (!isListe && new Date(form.endDate) <= new Date(form.startDate)) {
+      toast.error("La date de fin doit être postérieure à la date de début.");
+      return;
+    }
+    if (isListe && (!form.nbSieges || form.nbSieges < 1)) {
+      toast.error("Le nombre de sièges doit être supérieur à 0.");
+      return;
+    }
 
-      // ✅ Calcul des dates EN HEURE LOCALE (pas de conversion UTC)
-      const dateDebut = toLocalMySQL(new Date(form.startDate));
-
-      const dateFin = isListe
-        ? (() => {
-            const d = new Date(form.startDate);
-            d.setMinutes(d.getMinutes() + form.dureeTourMinutes);
-            return toLocalMySQL(d);
-          })()
-        : toLocalMySQL(new Date(form.endDate));
-
-      await api.post("/elections/submit", {
-        titre:              form.title,
-        description:        form.description,
-        type:               form.type,
-        date_debut:         dateDebut,
-        date_fin:           dateFin,
-        duree_tour_minutes: isListe ? form.dureeTourMinutes : null,
-        nb_sieges:          isListe ? form.nbSieges         : null,
-      });
-
-      toast.success(`Élection "${form.title}" envoyée pour validation.`, { autoClose: 5000 });
-      setForm({ title: "", description: "", startDate: "", endDate: "", type: "UNINOMINAL", dureeTourMinutes: 1440, nbSieges: 29 });
-    } catch (err) {
-      if (err.response?.status === 403) toast.error("Accès refusé.");
-      else toast.error(err.response?.data?.error || "Erreur lors de l'envoi.");
-    } finally { setLoading(false); }
+    // Formulaire valide → demander le téléphone pour payer
+    setTelephone("");
+    setEtapePaiement("telephone");
   };
 
-  const dateFinTour1 = isListe && form.startDate
-    ? (() => {
-        const d = new Date(form.startDate);
-        d.setMinutes(d.getMinutes() + form.dureeTourMinutes);
-        return d.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-      })()
-    : null;
+  // ── ÉTAPE 2 : Initier le paiement CamPay
+  const handlePayer = async () => {
+    if (!/^[0-9]{9}$/.test(telephone)) {
+      toast.error("Numéro invalide. Saisissez 9 chiffres sans l'indicatif.");
+      return;
+    }
 
-  const bonusSieges = isListe && form.nbSieges ? Math.floor(form.nbSieges / 2) : 0;
-  const resteSieges = isListe && form.nbSieges ? form.nbSieges - bonusSieges : 0;
-  const typeInfo    = TYPE_INFO[form.type];
+    setLoading(true);
+    setEtapePaiement("attente");
 
+    try {
+      const dateDebut = toLocalMySQL(new Date(form.startDate));
+      const dateFin   = isListe
+        ? toLocalMySQL(new Date(new Date(form.startDate).getTime() + form.dureeTourMinutes * 60000))
+        : toLocalMySQL(new Date(form.endDate));
+
+      const { data } = await api.post("/campay/initier-paiement", {
+        telephone: `237${telephone}`,
+        donnees_election: {
+          titre:            form.title,
+          description:      form.description,
+          type:             form.type,
+          startDate:        dateDebut,
+          endDate:          dateFin,
+          dureeTourMinutes: isListe ? form.dureeTourMinutes : null,
+          nbSieges:         isListe ? form.nbSieges         : null,
+        },
+      });
+
+      setCampayRef(data.campay_reference);
+      setMsgPaiement(data.message);
+
+      // Lancer le polling de vérification
+      lancerPolling(data.campay_reference);
+
+    } catch (err) {
+      setMsgPaiement(err.response?.data?.message || "Erreur lors de l'initialisation du paiement.");
+      setEtapePaiement("erreur");
+      setLoading(false);
+    }
+  };
+
+  // ── Polling : vérification toutes les 5s (max 60s)
+  const lancerPolling = (reference) => {
+    let tentatives = 0;
+
+    const interval = setInterval(async () => {
+      tentatives++;
+      try {
+        const { data } = await api.get(`/campay/statut/${reference}`);
+
+        if (data.status === "SUCCESSFUL") {
+          clearInterval(interval);
+          setEtapePaiement("succes");
+          setLoading(false);
+          toast.success(`🎉 Élection "${form.title}" créée avec succès !`, { autoClose: 6000 });
+          // Réinitialiser le formulaire
+          setForm({ title: "", description: "", startDate: "", endDate: "", type: "UNINOMINAL", dureeTourMinutes: 1440, nbSieges: 29 });
+
+        } else if (data.status === "FAILED" || tentatives >= 12) {
+          clearInterval(interval);
+          setMsgPaiement("Paiement échoué ou délai de 60 secondes dépassé.");
+          setEtapePaiement("erreur");
+          setLoading(false);
+        }
+
+      } catch {
+        clearInterval(interval);
+        setMsgPaiement("Erreur lors de la vérification du paiement.");
+        setEtapePaiement("erreur");
+        setLoading(false);
+      }
+    }, 5000);
+  };
+
+  // ── Handlers modal
+  const handleAnnuler   = () => { setEtapePaiement(""); setLoading(false); };
+  const handleReessayer = () => { setEtapePaiement("telephone"); setTelephone(""); };
+
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-indigo-100 via-indigo-200 to-indigo-300">
       <AdminElectionSidebar active="elections" />
 
+      {/* Modal Paiement CamPay */}
+      <ModalPaiement
+        etape={etapePaiement}
+        telephone={telephone}
+        setTelephone={setTelephone}
+        msgPaiement={msgPaiement}
+        campayRef={campayRef}
+        onPayer={handlePayer}
+        onAnnuler={handleAnnuler}
+        onReessayer={handleReessayer}
+      />
+
       <main className="flex-1 p-8 overflow-y-auto">
+        {/* En-tête */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h2 className="text-2xl font-black text-indigo-900 tracking-tight">Nouvelle élection</h2>
-            <p className="text-sm text-indigo-400 mt-1">Remplissez les informations ci-dessous</p>
+            <p className="text-sm text-indigo-400 mt-1">
+              Frais de création :{" "}
+              <strong className="text-indigo-600">{FRAIS_ELECTION} XAF</strong> — payés via Mobile Money
+            </p>
           </div>
           <Link
             to="/admin/adminelection/ElectionPage"
@@ -132,46 +509,76 @@ export default function CreerElection() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 max-w-5xl">
+
+          {/* ── Formulaire ── */}
           <form onSubmit={handleSubmit} className="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-5">
 
+            {/* Titre */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Titre *</label>
-              <input type="text" name="title" value={form.title} onChange={handleChange} required
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                Titre *
+              </label>
+              <input
+                type="text" name="title" value={form.title} onChange={handleChange} required
                 placeholder="Ex : Élection du bureau étudiant 2026"
-                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all" />
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all"
+              />
             </div>
 
+            {/* Description */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Description</label>
-              <textarea name="description" value={form.description} onChange={handleChange} rows="3"
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                Description
+              </label>
+              <textarea
+                name="description" value={form.description} onChange={handleChange} rows="3"
                 placeholder="Décrivez l'objet de cette élection…"
-                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all resize-none" />
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all resize-none"
+              />
             </div>
 
+            {/* Type de scrutin */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Type de scrutin *</label>
-              <select name="type" value={form.type} onChange={handleChange}
-                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                Type de scrutin *
+              </label>
+              <select
+                name="type" value={form.type} onChange={handleChange}
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer"
+              >
                 <option value="UNINOMINAL">Uninominal</option>
                 <option value="BINOMINAL">Binominal</option>
                 <option value="LISTE">Liste (tours successifs)</option>
               </select>
             </div>
 
+            {/* Date début */}
             <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Date et heure de début *</label>
-              <input type="datetime-local" name="startDate" value={form.startDate} onChange={handleChange} required
-                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all" />
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                Date et heure de début *
+              </label>
+              <input
+                type="datetime-local" name="startDate" value={form.startDate}
+                onChange={handleChange} required
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all"
+              />
             </div>
 
+            {/* Date fin (non LISTE) */}
             {!isListe && (
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Date et heure de fin *</label>
-                <input type="datetime-local" name="endDate" value={form.endDate} onChange={handleChange} required
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all" />
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                  Date et heure de fin *
+                </label>
+                <input
+                  type="datetime-local" name="endDate" value={form.endDate}
+                  onChange={handleChange} required
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all"
+                />
               </div>
             )}
 
+            {/* Options LISTE */}
             {isListe && (
               <div className="space-y-4 pt-1">
                 <div className="flex items-center gap-2">
@@ -185,8 +592,11 @@ export default function CreerElection() {
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                       <FiClock size={11} className="text-indigo-500" /> Durée par tour *
                     </label>
-                    <select name="dureeTourMinutes" value={form.dureeTourMinutes} onChange={handleChange} required
-                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer">
+                    <select
+                      name="dureeTourMinutes" value={form.dureeTourMinutes}
+                      onChange={handleChange} required
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer"
+                    >
                       {DUREE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                     </select>
                   </div>
@@ -194,8 +604,11 @@ export default function CreerElection() {
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                       <FiUsers size={11} className="text-indigo-500" /> Nombre de sièges *
                     </label>
-                    <input type="number" name="nbSieges" value={form.nbSieges} onChange={handleChange} required min="1" max="999" placeholder="Ex : 29"
-                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all" />
+                    <input
+                      type="number" name="nbSieges" value={form.nbSieges}
+                      onChange={handleChange} required min="1" max="999" placeholder="Ex : 29"
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all"
+                    />
                   </div>
                 </div>
 
@@ -250,23 +663,64 @@ export default function CreerElection() {
               </div>
             )}
 
+            {/* Bandeau frais CamPay */}
+            <div style={{
+              background: "linear-gradient(135deg, #eef2ff, #e0e7ff)",
+              border: "1.5px solid #c7d2fe",
+              borderRadius: "12px",
+              padding: "12px 16px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "20px" }}>💳</span>
+                <div>
+                  <p style={{ fontSize: "12px", fontWeight: 700, color: "#4338ca", margin: 0 }}>
+                    Frais de création
+                  </p>
+                  <p style={{ fontSize: "11px", color: "#6366f1", margin: 0 }}>
+                    Paiement Mobile Money requis
+                  </p>
+                </div>
+              </div>
+              <span style={{
+                fontSize: "16px", fontWeight: 900, color: "#4338ca",
+                background: "#fff", padding: "4px 12px", borderRadius: "8px",
+                border: "1px solid #c7d2fe",
+              }}>
+                {FRAIS_ELECTION} XAF
+              </span>
+            </div>
+
+            {/* Bouton soumettre */}
             <div className="pt-2">
-              <button type="submit" disabled={loading}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white transition-all ${
-                  loading ? "bg-gray-300 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-md shadow-indigo-200/60"
-                }`}>
-                {loading
-                  ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Création…</>
-                  : <><FiSave size={14} /> Soumettre l'élection</>
-                }
+              <button
+                type="submit"
+                disabled={loading}
+                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-white transition-all w-full justify-center ${
+                  loading
+                    ? "bg-gray-300 cursor-not-allowed"
+                    : "bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-md shadow-indigo-200/60"
+                }`}
+              >
+                {loading ? (
+                  <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Traitement…</>
+                ) : (
+                  <><FiSave size={14} /> Continuer vers le paiement</>
+                )}
               </button>
             </div>
           </form>
 
+          {/* ── Panneau latéral ── */}
           <div className="lg:col-span-2 space-y-4">
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
               <img src={Election} alt="Élection" className="w-full object-cover" />
             </div>
+
+            {/* Info type scrutin */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Type sélectionné</p>
               <div className="flex items-start gap-3">
@@ -277,13 +731,352 @@ export default function CreerElection() {
                 </div>
               </div>
             </div>
+
+            {/* Info paiement */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">💳 Processus de paiement</p>
+              <div className="space-y-3">
+                {[
+                  { step: "1", text: "Remplissez le formulaire" },
+                  { step: "2", text: "Entrez votre numéro MTN / Orange" },
+                  { step: "3", text: "Confirmez avec votre PIN sur votre téléphone" },
+                  { step: "4", text: "Élection créée automatiquement ✅" },
+                ].map(({ step, text }) => (
+                  <div key={step} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <div style={{
+                      width: "22px", height: "22px", borderRadius: "6px",
+                      background: "#eef2ff", color: "#6366f1",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: "11px", fontWeight: 800, flexShrink: 0,
+                    }}>
+                      {step}
+                    </div>
+                    <p style={{ fontSize: "12px", color: "#64748b", margin: 0 }}>{text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </main>
+
       <ToastContainer />
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// // src/pages/admin/adminelection/CreerElection.jsx
+// import React, { useState } from "react";
+// import { FiSave, FiArrowLeft, FiCalendar, FiClock, FiInfo, FiUsers } from "react-icons/fi";
+// import { Link } from "react-router-dom";
+// import api from "../../../services/api";
+// import { ToastContainer, toast } from "react-toastify";
+// import "react-toastify/dist/ReactToastify.css";
+// import Election from './Election.webp';
+// import AdminElectionSidebar from "../../../components/AdminElectionSidebar";
+
+// const DUREE_OPTIONS = [
+//   { value: 30,    label: "30 minutes" },
+//   { value: 60,    label: "1 heure" },
+//   { value: 120,   label: "2 heures" },
+//   { value: 360,   label: "6 heures" },
+//   { value: 720,   label: "12 heures" },
+//   { value: 1440,  label: "24 heures (1 jour)" },
+//   { value: 2880,  label: "48 heures (2 jours)" },
+//   { value: 4320,  label: "3 jours" },
+//   { value: 10080, label: "7 jours" },
+// ];
+
+// const TYPE_INFO = {
+//   UNINOMINAL: { emoji: "1️⃣", title: "Uninominal",              desc: "Chaque électeur vote pour un seul candidat. Le candidat avec le plus de voix gagne." },
+//   BINOMINAL:  { emoji: "2️⃣", title: "Binominal",              desc: "Chaque électeur vote pour exactement 2 candidats. Utile pour élire un titulaire et son suppléant." },
+//   LISTE:      { emoji: "📋", title: "Liste — Tours successifs", desc: "Vote pour une liste complète. Une majorité absolue (> 50%) est nécessaire. Sans vainqueur, un nouveau tour s'ouvre automatiquement." },
+// };
+
+// // ✅ Helper : convertit une Date JS en chaîne "YYYY-MM-DD HH:mm:00" EN HEURE LOCALE
+// // (sans passer par toISOString qui convertit en UTC et décale l'heure)
+// const toLocalMySQL = (date) => {
+//   const pad = n => String(n).padStart(2, "0");
+//   return (
+//     `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+//     ` ${pad(date.getHours())}:${pad(date.getMinutes())}:00`
+//   );
+// };
+
+// export default function CreerElection() {
+//   const [form, setForm] = useState({
+//     title: "", description: "", type: "UNINOMINAL",
+//     startDate: "", endDate: "",
+//     dureeTourMinutes: 1440, nbSieges: 29,
+//   });
+//   const [loading, setLoading] = useState(false);
+
+//   const isListe = form.type === "LISTE";
+
+//   const handleChange = (e) => {
+//     const { name, value } = e.target;
+//     setForm(prev => ({
+//       ...prev,
+//       [name]: (name === "dureeTourMinutes" || name === "nbSieges")
+//         ? parseInt(value) || 0
+//         : value,
+//     }));
+//   };
+
+//   const handleSubmit = async (e) => {
+//     e.preventDefault();
+//     setLoading(true);
+//     try {
+//       const token = localStorage.getItem("token");
+//       if (!token) { toast.error("Vous devez être connecté !"); setLoading(false); return; }
+
+//       if (!isListe && new Date(form.endDate) <= new Date(form.startDate)) {
+//         toast.error("La date de fin doit être postérieure à la date de début.");
+//         setLoading(false); return;
+//       }
+//       if (isListe && (!form.nbSieges || form.nbSieges < 1)) {
+//         toast.error("Le nombre de sièges doit être supérieur à 0.");
+//         setLoading(false); return;
+//       }
+
+//       // ✅ Calcul des dates EN HEURE LOCALE (pas de conversion UTC)
+//       const dateDebut = toLocalMySQL(new Date(form.startDate));
+
+//       const dateFin = isListe
+//         ? (() => {
+//             const d = new Date(form.startDate);
+//             d.setMinutes(d.getMinutes() + form.dureeTourMinutes);
+//             return toLocalMySQL(d);
+//           })()
+//         : toLocalMySQL(new Date(form.endDate));
+
+//       await api.post("/elections/submit", {
+//         titre:              form.title,
+//         description:        form.description,
+//         type:               form.type,
+//         date_debut:         dateDebut,
+//         date_fin:           dateFin,
+//         duree_tour_minutes: isListe ? form.dureeTourMinutes : null,
+//         nb_sieges:          isListe ? form.nbSieges         : null,
+//       });
+
+//       toast.success(`Élection "${form.title}" envoyée pour validation.`, { autoClose: 5000 });
+//       setForm({ title: "", description: "", startDate: "", endDate: "", type: "UNINOMINAL", dureeTourMinutes: 1440, nbSieges: 29 });
+//     } catch (err) {
+//       if (err.response?.status === 403) toast.error("Accès refusé.");
+//       else toast.error(err.response?.data?.error || "Erreur lors de l'envoi.");
+//     } finally { setLoading(false); }
+//   };
+
+//   const dateFinTour1 = isListe && form.startDate
+//     ? (() => {
+//         const d = new Date(form.startDate);
+//         d.setMinutes(d.getMinutes() + form.dureeTourMinutes);
+//         return d.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+//       })()
+//     : null;
+
+//   const bonusSieges = isListe && form.nbSieges ? Math.floor(form.nbSieges / 2) : 0;
+//   const resteSieges = isListe && form.nbSieges ? form.nbSieges - bonusSieges : 0;
+//   const typeInfo    = TYPE_INFO[form.type];
+
+//   return (
+//     <div className="flex min-h-screen bg-gradient-to-br from-indigo-100 via-indigo-200 to-indigo-300">
+//       <AdminElectionSidebar active="elections" />
+
+//       <main className="flex-1 p-8 overflow-y-auto">
+//         <div className="flex items-center justify-between mb-8">
+//           <div>
+//             <h2 className="text-2xl font-black text-indigo-900 tracking-tight">Nouvelle élection</h2>
+//             <p className="text-sm text-indigo-400 mt-1">Remplissez les informations ci-dessous</p>
+//           </div>
+//           <Link
+//             to="/admin/adminelection/ElectionPage"
+//             className="flex items-center gap-2 px-3.5 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 active:scale-95 transition-all text-sm font-medium shadow-sm"
+//           >
+//             <FiArrowLeft size={14} /> Retour
+//           </Link>
+//         </div>
+
+//         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 max-w-5xl">
+//           <form onSubmit={handleSubmit} className="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-5">
+
+//             <div>
+//               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Titre *</label>
+//               <input type="text" name="title" value={form.title} onChange={handleChange} required
+//                 placeholder="Ex : Élection du bureau étudiant 2026"
+//                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all" />
+//             </div>
+
+//             <div>
+//               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Description</label>
+//               <textarea name="description" value={form.description} onChange={handleChange} rows="3"
+//                 placeholder="Décrivez l'objet de cette élection…"
+//                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all resize-none" />
+//             </div>
+
+//             <div>
+//               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Type de scrutin *</label>
+//               <select name="type" value={form.type} onChange={handleChange}
+//                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer">
+//                 <option value="UNINOMINAL">Uninominal</option>
+//                 <option value="BINOMINAL">Binominal</option>
+//                 <option value="LISTE">Liste (tours successifs)</option>
+//               </select>
+//             </div>
+
+//             <div>
+//               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Date et heure de début *</label>
+//               <input type="datetime-local" name="startDate" value={form.startDate} onChange={handleChange} required
+//                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all" />
+//             </div>
+
+//             {!isListe && (
+//               <div>
+//                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Date et heure de fin *</label>
+//                 <input type="datetime-local" name="endDate" value={form.endDate} onChange={handleChange} required
+//                   className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all" />
+//               </div>
+//             )}
+
+//             {isListe && (
+//               <div className="space-y-4 pt-1">
+//                 <div className="flex items-center gap-2">
+//                   <div className="flex-1 h-px bg-indigo-100" />
+//                   <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest px-2">Scrutin de liste</span>
+//                   <div className="flex-1 h-px bg-indigo-100" />
+//                 </div>
+
+//                 <div className="grid grid-cols-2 gap-4">
+//                   <div>
+//                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+//                       <FiClock size={11} className="text-indigo-500" /> Durée par tour *
+//                     </label>
+//                     <select name="dureeTourMinutes" value={form.dureeTourMinutes} onChange={handleChange} required
+//                       className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer">
+//                       {DUREE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+//                     </select>
+//                   </div>
+//                   <div>
+//                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+//                       <FiUsers size={11} className="text-indigo-500" /> Nombre de sièges *
+//                     </label>
+//                     <input type="number" name="nbSieges" value={form.nbSieges} onChange={handleChange} required min="1" max="999" placeholder="Ex : 29"
+//                       className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 transition-all" />
+//                   </div>
+//                 </div>
+
+//                 {form.nbSieges > 0 && (
+//                   <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3.5">
+//                     <p className="text-xs font-bold text-indigo-500 mb-2.5 flex items-center gap-1.5">
+//                       <FiInfo size={11} /> Aperçu de la répartition des sièges
+//                     </p>
+//                     <div className="grid grid-cols-3 gap-2 text-center">
+//                       <div className="bg-white rounded-lg p-2 border border-indigo-100">
+//                         <p className="text-lg font-black text-indigo-700">{form.nbSieges}</p>
+//                         <p className="text-xs text-gray-400 mt-0.5">Total sièges</p>
+//                       </div>
+//                       <div className="bg-amber-50 rounded-lg p-2 border border-amber-100">
+//                         <p className="text-lg font-black text-amber-600">{bonusSieges}</p>
+//                         <p className="text-xs text-amber-500 mt-0.5">Bonus gagnant</p>
+//                       </div>
+//                       <div className="bg-white rounded-lg p-2 border border-indigo-100">
+//                         <p className="text-lg font-black text-indigo-500">{resteSieges}</p>
+//                         <p className="text-xs text-gray-400 mt-0.5">Répartis proportions</p>
+//                       </div>
+//                     </div>
+//                   </div>
+//                 )}
+
+//                 {dateFinTour1 && (
+//                   <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5">
+//                     <p className="text-xs font-bold text-gray-500 mb-2 flex items-center gap-1.5">
+//                       <FiCalendar size={11} /> Aperçu du calendrier
+//                     </p>
+//                     <div className="space-y-1.5 text-xs">
+//                       <div className="flex justify-between">
+//                         <span className="text-gray-400">Début Tour 1</span>
+//                         <span className="font-semibold text-indigo-700">
+//                           {new Date(form.startDate).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+//                         </span>
+//                       </div>
+//                       <div className="flex justify-between">
+//                         <span className="text-gray-400">Fin Tour 1</span>
+//                         <span className="font-semibold text-indigo-600">{dateFinTour1}</span>
+//                       </div>
+//                     </div>
+//                   </div>
+//                 )}
+
+//                 <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 flex items-start gap-2">
+//                   <FiInfo size={12} className="text-amber-500 mt-0.5 flex-shrink-0" />
+//                   <p className="text-xs text-amber-700 leading-relaxed">
+//                     Si aucune liste n'obtient la majorité absolue (&gt; 50%), un nouveau tour s'ouvre automatiquement.
+//                   </p>
+//                 </div>
+//               </div>
+//             )}
+
+//             <div className="pt-2">
+//               <button type="submit" disabled={loading}
+//                 className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white transition-all ${
+//                   loading ? "bg-gray-300 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-md shadow-indigo-200/60"
+//                 }`}>
+//                 {loading
+//                   ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Création…</>
+//                   : <><FiSave size={14} /> Soumettre l'élection</>
+//                 }
+//               </button>
+//             </div>
+//           </form>
+
+//           <div className="lg:col-span-2 space-y-4">
+//             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+//               <img src={Election} alt="Élection" className="w-full object-cover" />
+//             </div>
+//             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
+//               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Type sélectionné</p>
+//               <div className="flex items-start gap-3">
+//                 <span className="text-2xl flex-shrink-0">{typeInfo.emoji}</span>
+//                 <div>
+//                   <p className="font-bold text-gray-800 text-sm">{typeInfo.title}</p>
+//                   <p className="text-xs text-gray-500 mt-1 leading-relaxed">{typeInfo.desc}</p>
+//                 </div>
+//               </div>
+//             </div>
+//           </div>
+//         </div>
+//       </main>
+//       <ToastContainer />
+//     </div>
+//   );
+// }
 
 
 
