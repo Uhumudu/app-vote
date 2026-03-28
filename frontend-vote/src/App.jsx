@@ -16,6 +16,7 @@ import SuperAdminElections        from "./pages/admin/superadmin/SuperAdminElect
 import SuperAdminCreerElection    from "./pages/admin/superadmin/SuperAdminCreerElection";
 import SuperAdminModifierElection from "./pages/admin/superadmin/SuperAdminModifierElection";
 import SuperAdminSettings         from "./pages/admin/superadmin/SuperAdminSettings";
+import TransactionsCamPay from "./pages/admin/superadmin/TransactionsCamPay";
 
 // ─── Admin Élection ───────────────────────────────────────────────────────────
 import AdminElectionDashboard from "./pages/admin/adminelection/adminElectionDashboard";
@@ -77,6 +78,7 @@ function App() {
           <Route path="/admin/superadmin/elections/creer"                element={<SuperAdminCreerElection />} />
           <Route path="/admin/superadmin/elections/modifier/:id"         element={<SuperAdminModifierElection />} />
           <Route path="/admin/superadmin/parametres"                     element={<SuperAdminSettings />} />
+          <Route path="/admin/superadmin/transactions-campay" element={<TransactionsCamPay />} />
 
           {/* ── Admin Élection ─────────────────────────────────────────────── */}
           <Route path="/adminElectionDashboard"                          element={<AdminElectionDashboard />} />

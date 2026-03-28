@@ -1,16 +1,16 @@
 // src/components/SuperAdminSidebar.jsx
 import { Link } from "react-router-dom";
 import {
-  FiHome, FiUsers, FiBarChart2, FiSettings, FiLogOut, FiCalendar, FiShield
+  FiHome, FiUsers, FiBarChart2, FiSettings, FiLogOut, FiCalendar, FiShield, FiCreditCard 
 } from "react-icons/fi";
 import { FaVoteYea } from "react-icons/fa";
-
 const NAV_ITEMS = [
   { to: "/superAdminDashboard",               icon: <FiHome size={16} />,      label: "Tableau de bord",      key: "dashboard" },
   { to: "/admin/superadmin/utilisateursPage", icon: <FiUsers size={16} />,     label: "Utilisateurs",         key: "users" },
   { to: "/admin/superadmin/electionsValider", icon: <FaVoteYea size={15} />,   label: "Élections à valider",  key: "valider" },
   { to: "/admin/superadmin/elections",        icon: <FiCalendar size={16} />,  label: "Toutes les élections", key: "elections" },
   { to: "/admin/superadmin/StatistiquesPage", icon: <FiBarChart2 size={16} />, label: "Statistiques",         key: "stats" },
+   { to: "/admin/superadmin/transactions-campay", icon: <FiCreditCard size={16} />, label: "Transactions CamPay",key: "transactions" },
 ];
 
 export default function SuperAdminSidebar({ active }) {
@@ -249,5 +249,4 @@ export default function SuperAdminSidebar({ active }) {
     </aside>
   );
 }
-
 

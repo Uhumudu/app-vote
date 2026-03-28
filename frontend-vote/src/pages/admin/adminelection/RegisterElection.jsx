@@ -23,7 +23,7 @@ const DUREE_OPTIONS = [
   { value: 10080, label: "7 jours" },
 ];
 
-const FRAIS_ELECTION = 500; // XAF
+const FRAIS_ELECTION = 25; // XAF
 
 // ─── Helper dates ─────────────────────────────────────────────────────────────
 const toLocalMySQL = (date) => {

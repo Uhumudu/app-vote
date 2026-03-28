@@ -26,6 +26,7 @@ import adminElectionSettingsRoutes     from "./routes/adminElectionSettings.rout
 import superAdminSettingsRoutes        from "./routes/superAdminSettings.routes.js";
 import statistiquesSuperAdminRoutes    from "./routes/statistiques.routes.js";
 import campayRoutes from "./routes/campay.routes.js";
+import transactionsCamPayRoutes from "./routes/superadmin_transactions.routes.js";
 
 // 🔹 Jobs
 import { checkDepouillementAuto } from "./jobs/scrutin_liste.job.js";
@@ -97,6 +98,7 @@ app.use("/api",              superadminElectionsRoutes);
 app.use("/api/admin-election/settings", adminElectionSettingsRoutes);
 app.use("/api/super-admin/settings",    superAdminSettingsRoutes);
 app.use("/api/super-admin/statistiques", statistiquesSuperAdminRoutes);
+app.use("/api/superadmin/transactions-campay", transactionsCamPayRoutes);
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.get("/", (req, res) => res.send("🚀 API eVote fonctionne !"));
@@ -141,6 +143,7 @@ app.use((err, req, res, next) => {
 // 🔹 Démarrage
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Serveur + Socket.IO lancé sur ${PORT}`));
+
 
 
 
