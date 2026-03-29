@@ -31,7 +31,7 @@ const TYPE_INFO = {
   LISTE:      { emoji: "📋", title: "Liste — Tours successifs", desc: "Vote pour une liste complète. Une majorité absolue (> 50%) est nécessaire. Sans vainqueur, un nouveau tour s'ouvre automatiquement." },
 };
 
-const FRAIS_ELECTION = 500; // XAF
+const FRAIS_ELECTION = 25; // XAF
 
 // ─── Helper : convertit une Date JS → "YYYY-MM-DD HH:mm:00" en heure locale ─
 const toLocalMySQL = (date) => {
