@@ -46,3 +46,28 @@ export async function verifierStatutCampay(campayReference) {
   );
   return res.data; // { status: "SUCCESSFUL" | "PENDING" | "FAILED", ... }
 }
+
+
+// Initier un transfert (retrait vers compte Mobile Money)
+export async function initierTransfert({ telephone, montant, description }) {
+  const token              = await getToken();
+  const external_reference = `RETRAIT-SUPERADMIN-${Date.now()}`;
+
+  const res = await axios.post(
+    `${BASE_URL}transfer/`,
+    {
+      amount:             montant,
+      currency:           "XAF",
+      to:                 telephone,         // Format: 237XXXXXXXXX
+      description:        description || "Retrait super admin - eVote",
+      external_reference,
+    },
+    { headers: { Authorization: `Token ${token}` } }
+  );
+
+  return {
+    campay_reference:    res.data.reference,
+    external_reference,
+    montant,
+  };
+}

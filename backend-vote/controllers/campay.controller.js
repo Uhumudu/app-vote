@@ -250,10 +250,7 @@ export const verifierPaiementPublic = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────────────────────────────────────────
-// WEBHOOK — CamPay notifie automatiquement (pas d'auth JWT)
-// POST /api/campay/webhook
-// ─────────────────────────────────────────────────────────────────────
+// WEBHOOK — CamPay notifie automatiquement 
 export const webhook = async (req, res) => {
   const { reference, status } = req.body;
   console.log("📩 Webhook CamPay reçu:", req.body);
@@ -300,9 +297,8 @@ export const webhook = async (req, res) => {
   return res.status(200).json({ received: true });
 };
 
-// ─────────────────────────────────────────────────────────────────────
+
 // Utilitaire interne — crée election + scrutin en DB
-// ─────────────────────────────────────────────────────────────────────
 async function creerElectionEnDB(donnees, adminId) {
   const {
     titre,
@@ -357,255 +353,123 @@ async function creerElectionEnDB(donnees, adminId) {
 }
 
 
+// RETRAIT — Super admin initie un virement sortant
+export const initierRetrait = async (req, res) => {
+  const superAdminId = req.user.id;
+  const { telephone, montant, description } = req.body;
+
+  // Validations
+  if (!/^237[0-9]{9}$/.test(telephone)) {
+    return res.status(400).json({
+      success: false,
+      message: "Numéro invalide. Format attendu : 237XXXXXXXXX",
+    });
+  }
+
+  const montantNum = Number(montant);
+  if (!montantNum || montantNum < 100) {
+    return res.status(400).json({
+      success: false,
+      message: "Montant invalide. Minimum : 100 XAF.",
+    });
+  }
+
+  try {
+    const transfert = await initierTransfert({ telephone, montant: montantNum, description });
+
+    await pool.execute(
+      `INSERT INTO transaction_retrait
+        (superadmin_id, campay_reference, external_reference, montant, telephone, description, statut)
+       VALUES (?, ?, ?, ?, ?, ?, 'PENDING')`,
+      [
+        superAdminId,
+        transfert.campay_reference,
+        transfert.external_reference,
+        montantNum,
+        telephone,
+        description || null,
+      ]
+    );
+
+    return res.status(200).json({
+      success:          true,
+      campay_reference: transfert.campay_reference,
+      montant:          montantNum,
+      message:          "Retrait initié. Confirmation dans quelques instants.",
+    });
+
+  } catch (error) {
+    console.error("Erreur initierRetrait:", error.response?.data || error.message);
+    return res.status(500).json({
+      success: false,
+      message: "Échec de l'initialisation du retrait CamPay.",
+    });
+  }
+};
+
+
+// RETRAIT — Vérifier statut 
+export const verifierRetrait = async (req, res) => {
+  const { reference } = req.params;
+
+  try {
+    const [rows] = await pool.execute(
+      `SELECT * FROM transaction_retrait WHERE campay_reference = ?`,
+      [reference]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Retrait introuvable." });
+    }
+
+    const retrait = rows[0];
+
+    if (retrait.statut !== "PENDING") {
+      return res.json({ success: true, status: retrait.statut });
+    }
+
+    // Interroger CamPay pour le statut réel
+    const campayData = await verifierStatutCampay(reference);
+
+    if (campayData.status === "SUCCESSFUL") {
+      await pool.execute(
+        `UPDATE transaction_retrait
+         SET statut = 'SUCCESSFUL', date_confirmation = NOW()
+         WHERE campay_reference = ?`,
+        [reference]
+      );
+    } else if (campayData.status === "FAILED") {
+      await pool.execute(
+        `UPDATE transaction_retrait SET statut = 'FAILED' WHERE campay_reference = ?`,
+        [reference]
+      );
+    }
+
+    return res.json({ success: true, status: campayData.status });
+
+  } catch (error) {
+    console.error("Erreur verifierRetrait:", error.response?.data || error.message);
+    return res.status(500).json({ success: false, message: "Erreur de vérification." });
+  }
+};
+
+
+// SUPER ADMIN — Lister tous les retraits
+export const listerRetraits = async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT r.*,
+              u.nom    AS superadmin_nom,
+              u.prenom AS superadmin_prenom,
+              u.email  AS superadmin_email
+       FROM transaction_retrait r
+       LEFT JOIN utilisateur u ON u.id = r.superadmin_id
+       ORDER BY r.date_creation DESC`
+    );
+    return res.json(rows);
+  } catch (error) {
+    console.error("Erreur listerRetraits:", error.message);
+    return res.status(500).json({ success: false, message: "Erreur serveur." });
+  }
+};
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// import { pool }                                    from "../config/db.js";
-// import { initierCollecte, verifierStatutCampay }   from "../services/campay.service.js";
-
-// // ─────────────────────────────────────────────────────────────────────
-// // ÉTAPE 1 — Initier le paiement avant création d'élection
-// // POST /api/campay/initier-paiement
-// // Body: { telephone, donnees_election: { titre, description,
-// //         startDate, endDate, type, dureeTourMinutes, nbSieges } }
-// // ─────────────────────────────────────────────────────────────────────
-// export const initierPaiement = async (req, res) => {
-//   const adminId           = req.user.id;
-//   const { telephone, donnees_election } = req.body;
-
-//   // Validation numéro (format camerounais 237XXXXXXXXX)
-//   if (!/^237[0-9]{9}$/.test(telephone)) {
-//     return res.status(400).json({
-//       success: false,
-//       message: "Numéro invalide. Format attendu : 237XXXXXXXXX (ex: 2376XXXXXXXX)",
-//     });
-//   }
-
-//   // Validation données minimales
-//   if (!donnees_election?.titre || !donnees_election?.startDate) {
-//     return res.status(400).json({
-//       success: false,
-//       message: "Le titre et la date de début sont obligatoires.",
-//     });
-//   }
-
-//   try {
-//     const paiement = await initierCollecte(telephone, adminId);
-
-//     // Sauvegarder la transaction en DB (statut PENDING)
-//     await pool.execute(
-//       `INSERT INTO transaction_paiement
-//         (admin_id, campay_reference, external_reference, montant, statut, donnees_election)
-//        VALUES (?, ?, ?, ?, 'PENDING', ?)`,
-//       [
-//         adminId,
-//         paiement.campay_reference,
-//         paiement.external_reference,
-//         paiement.montant,
-//         JSON.stringify(donnees_election),
-//       ]
-//     );
-
-//     return res.status(200).json({
-//       success:          true,
-//       campay_reference: paiement.campay_reference,
-//       ussd_code:        paiement.ussd_code,
-//       montant:          paiement.montant,
-//       message:          "Vérifiez votre téléphone et confirmez le paiement avec votre PIN.",
-//     });
-
-//   } catch (error) {
-//     console.error("Erreur initierPaiement:", error.response?.data || error.message);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Échec de l'initialisation du paiement CamPay.",
-//     });
-//   }
-// };
-
-// // ─────────────────────────────────────────────────────────────────────
-// // ÉTAPE 2 — Vérifier le statut (polling frontend toutes les 5s)
-// // GET /api/campay/statut/:reference
-// // ─────────────────────────────────────────────────────────────────────
-// export const verifierPaiement = async (req, res) => {
-//   const { reference } = req.params;
-//   const adminId       = req.user.id;
-
-//   try {
-//     // 1. Retrouver la transaction dans votre DB
-//     const [rows] = await pool.execute(
-//       `SELECT * FROM transaction_paiement
-//        WHERE campay_reference = ? AND admin_id = ?`,
-//       [reference, adminId]
-//     );
-
-//     if (rows.length === 0) {
-//       return res.status(404).json({ success: false, message: "Transaction introuvable." });
-//     }
-
-//     const transaction = rows[0];
-
-//     // 2. Si déjà traitée → retourner directement
-//     if (transaction.statut === "SUCCESSFUL") {
-//       return res.json({ success: true, status: "SUCCESSFUL" });
-//     }
-//     if (transaction.statut === "FAILED") {
-//       return res.json({ success: true, status: "FAILED" });
-//     }
-
-//     // 3. Interroger CamPay
-//     const campayData = await verifierStatutCampay(reference);
-
-//     if (campayData.status === "SUCCESSFUL") {
-//       // 4. Créer l'élection + scrutin
-//       const donnees  = JSON.parse(transaction.donnees_election);
-//       const election = await creerElectionEnDB(donnees, adminId);
-
-//       // 5. Marquer la transaction SUCCESSFUL
-//       await pool.execute(
-//         `UPDATE transaction_paiement
-//          SET statut = 'SUCCESSFUL', date_confirmation = NOW()
-//          WHERE campay_reference = ?`,
-//         [reference]
-//       );
-
-//       return res.json({ success: true, status: "SUCCESSFUL", election });
-//     }
-
-//     if (campayData.status === "FAILED") {
-//       await pool.execute(
-//         `UPDATE transaction_paiement SET statut = 'FAILED' WHERE campay_reference = ?`,
-//         [reference]
-//       );
-//     }
-
-//     return res.json({ success: true, status: campayData.status });
-
-//   } catch (error) {
-//     console.error("Erreur verifierPaiement:", error.response?.data || error.message);
-//     return res.status(500).json({ success: false, message: "Erreur de vérification." });
-//   }
-// };
-
-// // ─────────────────────────────────────────────────────────────────────
-// // WEBHOOK — CamPay notifie automatiquement (pas d'auth JWT)
-// // POST /api/campay/webhook
-// // ─────────────────────────────────────────────────────────────────────
-// export const webhook = async (req, res) => {
-//   const { reference, status } = req.body;
-//   console.log("📩 Webhook CamPay reçu:", req.body);
-
-//   try {
-//     if (status === "SUCCESSFUL") {
-//       const [rows] = await pool.execute(
-//         `SELECT * FROM transaction_paiement
-//          WHERE campay_reference = ? AND statut = 'PENDING'`,
-//         [reference]
-//       );
-
-//       if (rows.length > 0) {
-//         const transaction = rows[0];
-//         const donnees     = JSON.parse(transaction.donnees_election);
-
-//         await creerElectionEnDB(donnees, transaction.admin_id);
-
-//         await pool.execute(
-//           `UPDATE transaction_paiement
-//            SET statut = 'SUCCESSFUL', date_confirmation = NOW()
-//            WHERE campay_reference = ?`,
-//           [reference]
-//         );
-
-//         console.log("✅ Élection créée via webhook pour admin_id:", transaction.admin_id);
-//       }
-//     }
-//   } catch (err) {
-//     console.error("Erreur webhook:", err.message);
-//   }
-
-//   // Toujours répondre 200 à CamPay
-//   return res.status(200).json({ received: true });
-// };
-
-// // ─────────────────────────────────────────────────────────────────────
-// // Utilitaire interne — crée election + scrutin en DB
-// // (même logique que votre submitElectionForValidation existant)
-// // ─────────────────────────────────────────────────────────────────────
-// async function creerElectionEnDB(donnees, adminId) {
-//   const {
-//     titre,
-//     description   = "",
-//     startDate,
-//     endDate,
-//     type          = "UNINOMINAL",
-//     dureeTourMinutes,
-//     nbSieges,
-//   } = donnees;
-
-//   const isListe = type === "LISTE";
-
-//   // Réutilise votre helper toLocalMySQL
-//   const toLocalMySQL = (d) => {
-//     const date = new Date(d);
-//     const pad   = n => String(n).padStart(2, "0");
-//     return (
-//       `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}` +
-//       ` ${pad(date.getHours())}:${pad(date.getMinutes())}:00`
-//     );
-//   };
-
-//   const dateDebut = toLocalMySQL(new Date(startDate));
-//   const dateFin   = isListe
-//     ? toLocalMySQL(new Date(new Date(startDate).getTime() + (dureeTourMinutes||1440) * 60000))
-//     : toLocalMySQL(new Date(endDate));
-
-//   // Insérer dans `election`
-//   const [result] = await pool.execute(
-//     `INSERT INTO election
-//       (titre, description, date_debut, date_fin, statut, admin_id,
-//        tour_courant, nb_sieges, duree_tour_minutes)
-//      VALUES (?, ?, ?, ?, 'EN_ATTENTE', ?, 1, ?, ?)`,
-//     [
-//       titre, description, dateDebut, dateFin, adminId,
-//       isListe ? (nbSieges || 0) : 0,
-//       isListe ? (dureeTourMinutes || 1440) : 1440,
-//     ]
-//   );
-
-//   const electionId = result.insertId;
-
-//   // Insérer dans `scrutin`
-//   await pool.execute(
-//     `INSERT INTO scrutin (type, election_id) VALUES (?, ?)`,
-//     [type, electionId]
-//   );
-
-//   return { id_election: electionId, titre, statut: "EN_ATTENTE" };
-// }

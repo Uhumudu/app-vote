@@ -1,16 +1,19 @@
 // src/components/SuperAdminSidebar.jsx
 import { Link } from "react-router-dom";
 import {
-  FiHome, FiUsers, FiBarChart2, FiSettings, FiLogOut, FiCalendar, FiShield, FiCreditCard 
+  FiHome, FiUsers, FiBarChart2, FiSettings, FiLogOut,
+  FiCalendar, FiShield, FiCreditCard, FiSend
 } from "react-icons/fi";
 import { FaVoteYea } from "react-icons/fa";
+
 const NAV_ITEMS = [
-  { to: "/superAdminDashboard",               icon: <FiHome size={16} />,      label: "Tableau de bord",      key: "dashboard" },
-  { to: "/admin/superadmin/utilisateursPage", icon: <FiUsers size={16} />,     label: "Utilisateurs",         key: "users" },
-  { to: "/admin/superadmin/electionsValider", icon: <FaVoteYea size={15} />,   label: "Élections à valider",  key: "valider" },
-  { to: "/admin/superadmin/elections",        icon: <FiCalendar size={16} />,  label: "Toutes les élections", key: "elections" },
-  { to: "/admin/superadmin/StatistiquesPage", icon: <FiBarChart2 size={16} />, label: "Statistiques",         key: "stats" },
-   { to: "/admin/superadmin/transactions-campay", icon: <FiCreditCard size={16} />, label: "Transactions CamPay",key: "transactions" },
+  { to: "/superAdminDashboard",                  icon: <FiHome size={16} />,       label: "Tableau de bord",      key: "dashboard"    },
+  { to: "/admin/superadmin/utilisateursPage",    icon: <FiUsers size={16} />,      label: "Utilisateurs",         key: "users"        },
+  { to: "/admin/superadmin/electionsValider",    icon: <FaVoteYea size={15} />,    label: "Élections à valider",  key: "valider"      },
+  { to: "/admin/superadmin/elections",           icon: <FiCalendar size={16} />,   label: "Toutes les élections", key: "elections"    },
+  { to: "/admin/superadmin/StatistiquesPage",    icon: <FiBarChart2 size={16} />,  label: "Statistiques",         key: "stats"        },
+  { to: "/admin/superadmin/transactions-campay", icon: <FiCreditCard size={16} />, label: "Transactions",         key: "transactions" },
+  { to: "/admin/superadmin/retraits",            icon: <FiSend size={16} />,       label: "Retraits",             key: "retraits"     },
 ];
 
 export default function SuperAdminSidebar({ active }) {
@@ -96,26 +99,18 @@ export default function SuperAdminSidebar({ active }) {
                 fontSize: "13.5px",
                 fontWeight: isActive ? 600 : 400,
                 color: "#ffffff",
-                background: isActive
-                  ? "rgba(255,255,255,0.2)"
-                  : "transparent",
-                border: isActive
-                  ? "1px solid rgba(255,255,255,0.3)"
-                  : "1px solid transparent",
+                background: isActive ? "rgba(255,255,255,0.2)" : "transparent",
+                border: isActive ? "1px solid rgba(255,255,255,0.3)" : "1px solid transparent",
                 textDecoration: "none",
                 transition: "all 0.18s ease",
                 position: "relative",
                 boxShadow: isActive ? "0 2px 12px rgba(0,0,0,0.15)" : "none",
               }}
               onMouseEnter={e => {
-                if (!isActive) {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.1)";
-                }
+                if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.1)";
               }}
               onMouseLeave={e => {
-                if (!isActive) {
-                  e.currentTarget.style.background = "transparent";
-                }
+                if (!isActive) e.currentTarget.style.background = "transparent";
               }}
             >
               {isActive && (
@@ -170,14 +165,10 @@ export default function SuperAdminSidebar({ active }) {
                 transition: "all 0.18s ease",
               }}
               onMouseEnter={e => {
-                if (!isActive) {
-                  e.currentTarget.style.background = "rgba(255,255,255,0.1)";
-                }
+                if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.1)";
               }}
               onMouseLeave={e => {
-                if (!isActive) {
-                  e.currentTarget.style.background = "transparent";
-                }
+                if (!isActive) e.currentTarget.style.background = "transparent";
               }}
             >
               <span style={{ display: "flex", opacity: isActive ? 1 : 0.75 }}>
@@ -249,4 +240,3 @@ export default function SuperAdminSidebar({ active }) {
     </aside>
   );
 }
-
