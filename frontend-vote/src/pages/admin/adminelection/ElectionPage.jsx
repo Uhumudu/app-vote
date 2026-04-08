@@ -1,3 +1,38 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // src/pages/admin/adminelection/ElectionPage.jsx  — VERSION REFACTORISÉE
 // Seul changement : suppression du <aside> inline, ajout de AdminElectionLayout
 import React, { useState, useEffect } from "react";

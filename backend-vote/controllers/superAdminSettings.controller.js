@@ -182,12 +182,15 @@ export const getRoles = async (req, res) => {
 
 const CONFIG_DEFAULTS = {
   nomPlateforme:      "VoteSecure",
-  urlFrontend:        "https://votesecure.cm",
+  urlFrontend:        "https://evotesecure.cm",
   emailSupport:       "support@votesecure.cm",
   votesMultiples:     false,
   inscriptionOuverte: true,
   maintenance:        false,
   dureeSession:       "24",
+      couleurPrincipale:  "#4f46e5", 
+    logoUrl:            "",        
+    messageMaintenance: "La plateforme est temporairement indisponible pour maintenance. Veuillez réessayer ultérieurement.", // ← NOUVEAU
 };
 
 export const getPlatformConfig = async (req, res) => {
@@ -212,36 +215,41 @@ export const getPlatformConfig = async (req, res) => {
 };
 
 export const updatePlatformConfig = async (req, res) => {
-  try {
-    const {
-      nomPlateforme, urlFrontend, emailSupport,
-      votesMultiples, inscriptionOuverte, maintenance, dureeSession,
-    } = req.body;
+    try {
+      const {
+        nomPlateforme, urlFrontend, emailSupport,
+        votesMultiples, inscriptionOuverte, maintenance, dureeSession,
+        couleurPrincipale, logoUrl, messageMaintenance, // ← NOUVEAUX
+      } = req.body;
 
-    const config = {
-      nomPlateforme:      nomPlateforme      || CONFIG_DEFAULTS.nomPlateforme,
-      urlFrontend:        urlFrontend        || CONFIG_DEFAULTS.urlFrontend,
-      emailSupport:       emailSupport       || CONFIG_DEFAULTS.emailSupport,
-      votesMultiples:     typeof votesMultiples     === "boolean" ? votesMultiples     : CONFIG_DEFAULTS.votesMultiples,
-      inscriptionOuverte: typeof inscriptionOuverte === "boolean" ? inscriptionOuverte : CONFIG_DEFAULTS.inscriptionOuverte,
-      maintenance:        typeof maintenance        === "boolean" ? maintenance        : CONFIG_DEFAULTS.maintenance,
-      dureeSession:       dureeSession       || CONFIG_DEFAULTS.dureeSession,
-    };
+      const config = {
+        nomPlateforme:      nomPlateforme      || CONFIG_DEFAULTS.nomPlateforme,
+        urlFrontend:        urlFrontend        || CONFIG_DEFAULTS.urlFrontend,
+        emailSupport:       emailSupport       || CONFIG_DEFAULTS.emailSupport,
+        votesMultiples:     typeof votesMultiples     === "boolean" ? votesMultiples     : CONFIG_DEFAULTS.votesMultiples,
+        inscriptionOuverte: typeof inscriptionOuverte === "boolean" ? inscriptionOuverte : CONFIG_DEFAULTS.inscriptionOuverte,
+        maintenance:        typeof maintenance        === "boolean" ? maintenance        : CONFIG_DEFAULTS.maintenance,
+        dureeSession:       dureeSession       || CONFIG_DEFAULTS.dureeSession,
+        couleurPrincipale:  couleurPrincipale  || CONFIG_DEFAULTS.couleurPrincipale,  // ← NOUVEAU
+        logoUrl:            logoUrl            ?? CONFIG_DEFAULTS.logoUrl,             // ← NOUVEAU
+        messageMaintenance: messageMaintenance || CONFIG_DEFAULTS.messageMaintenance,  // ← NOUVEAU
+      };
 
-    await pool.query(
-      "DELETE FROM notification WHERE utilisateur_id = 0 AND type = 'PLATFORM_CONFIG'"
-    );
-    await pool.query(
-      "INSERT INTO notification (utilisateur_id, type, message) VALUES (0, 'PLATFORM_CONFIG', ?)",
-      [JSON.stringify(config)]
-    );
+      await pool.query(
+        "DELETE FROM notification WHERE utilisateur_id = 0 AND type = 'PLATFORM_CONFIG'"
+      );
+      await pool.query(
+        "INSERT INTO notification (utilisateur_id, type, message) VALUES (0, 'PLATFORM_CONFIG', ?)",
+        [JSON.stringify(config)]
+      );
 
-    res.json({ message: "Configuration sauvegardée avec succès.", config });
-  } catch (err) {
-    console.error("[superAdminSettings] updatePlatformConfig:", err);
-    res.status(500).json({ message: "Erreur serveur." });
-  }
-};
+      res.json({ message: "Configuration sauvegardée avec succès.", config });
+    } catch (err) {
+      console.error("[superAdminSettings] updatePlatformConfig:", err);
+      res.status(500).json({ message: "Erreur serveur." });
+    }
+  };
+
 
 // ─── LOGS ─────────────────────────────────────────────────────────────────────
 

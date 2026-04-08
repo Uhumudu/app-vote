@@ -400,18 +400,43 @@ export default function CandidaturesPubliquesPage() {
   });
 
   // ── Action approuver / rejeter ────────────────────────────────────────────────
+  // ✅ CORRECTION : on capture { data } pour accéder à emailEchec et motDePasse
   const handleAction = async (candidatId, action) => {
     setActionLoading(true);
     try {
-      await api.put(
+      const { data } = await api.put(
         `/public-elections/${electionId}/candidatures/${candidatId}/review`,
         { action }
       );
-      toast.success(
-        action === "APPROUVE"
-          ? "✅ Candidature approuvée ! Le candidat a été notifié par email."
-          : "❌ Candidature rejetée. Le candidat a été notifié."
-      );
+
+      if (data.emailEchec) {
+        // Email non envoyé → afficher le mot de passe à l'admin
+        toast.warn(
+          <div>
+            <strong>✅ Candidature approuvée</strong>
+            <p style={{ margin: "6px 0 0", fontSize: "12px", lineHeight: 1.5 }}>
+              ⚠️ Email non envoyé (config mail manquante).<br />
+              Mot de passe temporaire :{" "}
+              <strong style={{
+                background: "#fef9c3", padding: "1px 6px",
+                borderRadius: "4px", fontFamily: "monospace",
+              }}>
+                {data.motDePasse}
+              </strong>
+              <br />
+              Transmettez-le manuellement au candidat.
+            </p>
+          </div>,
+          { autoClose: false }  // Ne pas fermer auto : l'admin doit le noter
+        );
+      } else {
+        toast.success(
+          action === "APPROUVE"
+            ? "✅ Candidature approuvée ! Le candidat a été notifié par email."
+            : "❌ Candidature rejetée. Le candidat a été notifié."
+        );
+      }
+
       setSelected(null);
       await fetchData();
     } catch (err) {
@@ -760,303 +785,3 @@ export default function CandidaturesPubliquesPage() {
   );
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// // src/pages/admin/adminelection/CandidaturesPubliquesPage.jsx
-// // Permet à l'admin d'approuver ou rejeter les candidatures publiques reçues
-// import React, { useState, useEffect } from "react";
-// import { useParams, Link } from "react-router-dom";
-// import { motion, AnimatePresence } from "framer-motion";
-// import {
-//   FiCheckCircle, FiXCircle, FiArrowLeft, FiUser,
-//   FiMail, FiPhone, FiClock, FiUsers,
-// } from "react-icons/fi";
-// import api from "../../../services/api";
-// import { toast, ToastContainer } from "react-toastify";
-// import "react-toastify/dist/ReactToastify.css";
-// import AdminElectionSidebar from "../../../components/AdminElectionSidebar";
-
-// const formatDate = d =>
-//   new Date(d).toLocaleDateString("fr-FR", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" });
-
-// const STATUT_BADGE = {
-//   EN_ATTENTE: { bg:"#fffbeb", color:"#d97706", border:"#fde68a", label:"En attente" },
-//   APPROUVE:   { bg:"#f0fdf4", color:"#15803d", border:"#bbf7d0", label:"Approuvé" },
-//   REJETE:     { bg:"#fef2f2", color:"#dc2626", border:"#fecaca", label:"Rejeté" },
-// };
-
-// export default function CandidaturesPubliquesPage() {
-//   const { id } = useParams();           // election_id
-//   const [candidats,   setCandidats]   = useState([]);
-//   const [loading,     setLoading]     = useState(true);
-//   const [processing,  setProcessing]  = useState({});
-//   const [filter,      setFilter]      = useState("all"); // all | EN_ATTENTE | APPROUVE | REJETE
-
-//   const fetchCandidatures = () => {
-//     setLoading(true);
-//     api.get(`/public-elections/${id}/candidatures`)
-//       .then(r => setCandidats(r.data))
-//       .catch(() => toast.error("Impossible de charger les candidatures."))
-//       .finally(() => setLoading(false));
-//   };
-
-//   useEffect(() => { fetchCandidatures(); }, [id]);
-
-//   const handleReview = async (candidatId, action) => {
-//     setProcessing(p => ({ ...p, [candidatId]: true }));
-//     try {
-//       await api.put(`/public-elections/candidature/${candidatId}/review`, { action });
-//       toast.success(action === "APPROUVE" ? "✅ Candidature approuvée !" : "❌ Candidature rejetée.");
-//       fetchCandidatures();
-//     } catch (err) {
-//       toast.error(err.response?.data?.message || "Une erreur est survenue.");
-//     } finally {
-//       setProcessing(p => ({ ...p, [candidatId]: false }));
-//     }
-//   };
-
-//   const filtered = filter === "all" ? candidats : candidats.filter(c => c.statut === filter);
-//   const counts = {
-//     EN_ATTENTE: candidats.filter(c => c.statut === "EN_ATTENTE").length,
-//     APPROUVE:   candidats.filter(c => c.statut === "APPROUVE").length,
-//     REJETE:     candidats.filter(c => c.statut === "REJETE").length,
-//   };
-
-//   return (
-//     <div className="flex min-h-screen bg-gradient-to-br from-indigo-100 via-indigo-200 to-indigo-300">
-//       <AdminElectionSidebar active="elections" />
-//       <ToastContainer />
-
-//       <main className="flex-1 p-8 overflow-y-auto">
-//         {/* Header */}
-//         <div className="flex items-center justify-between mb-8">
-//           <div className="flex items-center gap-3">
-//             <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center shadow-sm">
-//               <FiUsers size={16} />
-//             </div>
-//             <div>
-//               <h2 className="text-2xl font-black text-indigo-900 tracking-tight">
-//                 Candidatures publiques
-//               </h2>
-//               <p className="text-sm text-indigo-400 mt-0.5">
-//                 Élection #{id} — {candidats.length} candidature{candidats.length > 1 ? "s" : ""} reçue{candidats.length > 1 ? "s" : ""}
-//               </p>
-//             </div>
-//           </div>
-//           <Link
-//             to="/admin/adminelection/ElectionPage"
-//             className="flex items-center gap-2 px-3.5 py-2 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 transition-all text-sm font-medium shadow-sm"
-//           >
-//             <FiArrowLeft size={14} /> Retour aux élections
-//           </Link>
-//         </div>
-
-//         {/* Stats rapides */}
-//         <div className="grid grid-cols-3 gap-4 mb-6 max-w-2xl">
-//           {[
-//             { key:"EN_ATTENTE", label:"En attente", color:"#d97706", bg:"#fffbeb" },
-//             { key:"APPROUVE",   label:"Approuvées", color:"#15803d", bg:"#f0fdf4" },
-//             { key:"REJETE",     label:"Rejetées",   color:"#dc2626", bg:"#fef2f2" },
-//           ].map(s => (
-//             <div key={s.key} onClick={() => setFilter(filter === s.key ? "all" : s.key)} style={{
-//               background: filter === s.key ? s.bg : "white",
-//               border: `2px solid ${filter === s.key ? s.color : "#e5e7eb"}`,
-//               borderRadius: 16, padding: "16px 20px", textAlign: "center",
-//               cursor: "pointer", transition: "all .15s",
-//               boxShadow: filter === s.key ? `0 4px 14px ${s.color}25` : "0 2px 8px rgba(0,0,0,0.04)",
-//             }}>
-//               <p style={{ fontSize: 24, fontWeight: 900, color: s.color, margin: "0 0 4px" }}>
-//                 {counts[s.key]}
-//               </p>
-//               <p style={{ fontSize: 12, fontWeight: 600, color: "#64748b", margin: 0 }}>{s.label}</p>
-//             </div>
-//           ))}
-//         </div>
-
-//         {/* Liste */}
-//         {loading ? (
-//           <div className="bg-white rounded-2xl p-12 text-center text-gray-400 shadow-sm border border-gray-200">
-//             <div className="w-8 h-8 border-3 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4" />
-//             Chargement…
-//           </div>
-//         ) : filtered.length === 0 ? (
-//           <div className="bg-white rounded-2xl p-12 text-center shadow-sm border border-gray-200">
-//             <div style={{ fontSize: 40, marginBottom: 12 }}>📭</div>
-//             <p className="text-gray-600 font-semibold">Aucune candidature {filter !== "all" ? STATUT_BADGE[filter]?.label.toLowerCase() : ""}</p>
-//           </div>
-//         ) : (
-//           <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 780 }}>
-//             <AnimatePresence>
-//               {filtered.map((c, idx) => {
-//                 const badge = STATUT_BADGE[c.statut];
-//                 const isPending = c.statut === "EN_ATTENTE";
-//                 return (
-//                   <motion.div
-//                     key={c.id}
-//                     initial={{ opacity: 0, y: 16 }}
-//                     animate={{ opacity: 1, y: 0 }}
-//                     exit={{ opacity: 0, x: -20 }}
-//                     transition={{ delay: idx * .05 }}
-//                     style={{
-//                       background: "white",
-//                       border: isPending ? "2px solid #fde68a" : "1px solid #f0f0f0",
-//                       borderRadius: 20,
-//                       padding: "20px 24px",
-//                       boxShadow: isPending ? "0 4px 16px rgba(245,158,11,0.12)" : "0 2px 10px rgba(0,0,0,0.04)",
-//                     }}
-//                   >
-//                     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-//                       {/* Infos candidat */}
-//                       <div style={{ flex: 1, minWidth: 220 }}>
-//                         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-//                           <div style={{
-//                             width: 42, height: 42, borderRadius: 12, flexShrink: 0,
-//                             background: "linear-gradient(135deg,#6366f1,#4f46e5)",
-//                             display: "flex", alignItems: "center", justifyContent: "center",
-//                             color: "white", fontSize: 16, fontWeight: 800,
-//                           }}>
-//                             {c.prenom?.[0]}{c.nom?.[0]}
-//                           </div>
-//                           <div>
-//                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-//                               <p style={{ fontWeight: 800, fontSize: 15, color: "#1e1b4b", margin: 0 }}>
-//                                 {c.prenom} {c.nom}
-//                               </p>
-//                               <span style={{
-//                                 background: badge.bg, color: badge.color,
-//                                 border: `1px solid ${badge.border}`,
-//                                 fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
-//                               }}>
-//                                 {badge.label}
-//                               </span>
-//                             </div>
-//                             <p style={{ fontSize: 11, color: "#94a3b8", margin: "3px 0 0" }}>
-//                               <FiClock size={10}/> Soumis le {formatDate(c.created_at)}
-//                             </p>
-//                           </div>
-//                         </div>
-
-//                         {/* Contact */}
-//                         <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 10 }}>
-//                           {c.email && (
-//                             <span style={{ fontSize: 12, color: "#64748b", display: "flex", alignItems: "center", gap: 5 }}>
-//                               <FiMail size={11}/> {c.email}
-//                             </span>
-//                           )}
-//                           {c.telephone && (
-//                             <span style={{ fontSize: 12, color: "#64748b", display: "flex", alignItems: "center", gap: 5 }}>
-//                               <FiPhone size={11}/> {c.telephone}
-//                             </span>
-//                           )}
-//                         </div>
-
-//                         {/* Bio */}
-//                         {c.bio && (
-//                           <p style={{
-//                             fontSize: 13, color: "#475569", lineHeight: 1.6, margin: 0,
-//                             background: "#f8fafc", padding: "10px 14px", borderRadius: 10,
-//                             border: "1px solid #f0f0f0",
-//                           }}>
-//                             {c.bio}
-//                           </p>
-//                         )}
-
-//                         {/* Votes reçus (si approuvé) */}
-//                         {c.statut === "APPROUVE" && (
-//                           <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}>
-//                             <span style={{
-//                               background: "#eef2ff", color: "#6366f1",
-//                               fontSize: 12, fontWeight: 700, padding: "4px 12px", borderRadius: 999,
-//                               display: "flex", alignItems: "center", gap: 5,
-//                             }}>
-//                               🗳 {c.nb_votes} vote{c.nb_votes > 1 ? "s" : ""} reçu{c.nb_votes > 1 ? "s" : ""}
-//                             </span>
-//                             <a
-//                               href={`/dashboard-candidat?mode=candidat&id=${c.id}`}
-//                               target="_blank"
-//                               rel="noreferrer"
-//                               style={{ fontSize: 11, color: "#6366f1", textDecoration: "none" }}
-//                             >
-//                               → Voir son dashboard
-//                             </a>
-//                           </div>
-//                         )}
-//                       </div>
-
-//                       {/* Actions */}
-//                       {isPending && (
-//                         <div style={{ display: "flex", gap: 8, flexShrink: 0, alignSelf: "center" }}>
-//                           <button
-//                             onClick={() => handleReview(c.id, "REJETE")}
-//                             disabled={processing[c.id]}
-//                             style={{
-//                               display: "flex", alignItems: "center", gap: 6,
-//                               padding: "10px 18px", borderRadius: 12,
-//                               border: "1.5px solid #fecaca", background: "#fef2f2",
-//                               color: "#dc2626", fontSize: 13, fontWeight: 700,
-//                               cursor: "pointer", fontFamily: "inherit",
-//                               transition: "all .15s", opacity: processing[c.id] ? .6 : 1,
-//                             }}
-//                           >
-//                             <FiXCircle size={14} /> Rejeter
-//                           </button>
-//                           <button
-//                             onClick={() => handleReview(c.id, "APPROUVE")}
-//                             disabled={processing[c.id]}
-//                             style={{
-//                               display: "flex", alignItems: "center", gap: 6,
-//                               padding: "10px 18px", borderRadius: 12,
-//                               border: "none",
-//                               background: "linear-gradient(135deg,#22c55e,#16a34a)",
-//                               color: "white", fontSize: 13, fontWeight: 700,
-//                               cursor: "pointer", fontFamily: "inherit",
-//                               boxShadow: "0 4px 12px rgba(34,197,94,0.30)",
-//                               transition: "all .15s", opacity: processing[c.id] ? .6 : 1,
-//                             }}
-//                           >
-//                             <FiCheckCircle size={14} />
-//                             {processing[c.id] ? "…" : "Approuver"}
-//                           </button>
-//                         </div>
-//                       )}
-//                     </div>
-//                   </motion.div>
-//                 );
-//               })}
-//             </AnimatePresence>
-//           </div>
-//         )}
-//       </main>
-//     </div>
-//   );
-// }

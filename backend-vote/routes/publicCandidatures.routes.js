@@ -6,6 +6,7 @@ import {
   soumettreCandidat,
   getCandidaturesPubliques,
   reviewCandidature,
+  getDashboardCandidatPublicConnecte,
 } from "../controllers/publicCandidatures.controller.js";
 
 const router = express.Router();
@@ -15,7 +16,8 @@ router.get("/:id/detail",      getPublicElectionDetail);
 router.post("/:id/candidater", soumettreCandidat);
 
 // Avec auth — admin seulement
-router.get("/:id/candidatures",                       verifyToken, isAdmin, getCandidaturesPubliques);
-router.put("/:id/candidatures/:candidatId/review",    verifyToken, isAdmin, reviewCandidature);
-
+router.get("/:id/candidatures", verifyToken, isAdmin, getCandidaturesPubliques);
+router.put("/:id/candidatures/:candidatId/review", verifyToken, isAdmin, reviewCandidature);
+router.get(
+  "/dashboard/candidat-public/:utilisateurId", verifyToken, getDashboardCandidatPublicConnecte);
 export default router;

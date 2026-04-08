@@ -7,8 +7,10 @@ import {
   sendCandidatureRejeteeEmail,
   sendVoteConfirmationEmail,
 } from "../services/publicMailer.js";
+import { initierCollecte, verifierStatutCampay } from "../services/campay.service.js";
 
-// ─── GET : Toutes les élections publiques approuvées (page d'accueil) ─────────
+// ─── GET : Toutes les élections publiques (page d'accueil) ───────────────────
+// Inclut les élections TERMINÉES depuis moins de 7 jours
 export const getPublicElections = async (req, res) => {
   try {
     const [rows] = await pool.execute(`
@@ -22,6 +24,7 @@ export const getPublicElections = async (req, res) => {
         e.visibilite,
         e.frais_vote_xaf,
         e.tour_courant,
+        e.photo_url,
         s.type,
         u.nom    AS nom_admin,
         u.prenom AS prenom_admin,
@@ -32,8 +35,16 @@ export const getPublicElections = async (req, res) => {
       JOIN utilisateur u  ON u.id           = e.admin_id
       LEFT JOIN candidat_public cp ON cp.election_id = e.id_election AND cp.statut = 'APPROUVE'
       LEFT JOIN vote_public     vp ON vp.election_id = e.id_election AND vp.statut_paiement = 'PAYÉ'
-      WHERE e.visibilite = 'PUBLIQUE'                        -- ✅ corrigé
-        AND e.statut IN ('APPROUVEE', 'EN_COURS')
+      WHERE e.visibilite = 'PUBLIQUE'
+        AND (
+          e.statut IN ('APPROUVEE', 'EN_COURS')
+          OR (
+            -- ✅ Elections TERMINÉES : visibles encore 7 jours après date_fin
+            e.statut = 'TERMINEE'
+            AND e.date_fin IS NOT NULL
+            AND e.date_fin >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+          )
+        )
       GROUP BY e.id_election
       ORDER BY e.date_debut ASC
     `);
@@ -52,7 +63,7 @@ export const getPublicElectionDetail = async (req, res) => {
       SELECT e.*, s.type
       FROM election e
       JOIN scrutin s ON s.election_id = e.id_election
-      WHERE e.id_election = ? AND e.visibilite = 'PUBLIQUE'  -- ✅ corrigé
+      WHERE e.id_election = ? AND e.visibilite = 'PUBLIQUE'
     `, [id]);
 
     if (!election) return res.status(404).json({ message: "Élection introuvable ou non publique." });
@@ -79,7 +90,9 @@ export const getPublicElectionDetail = async (req, res) => {
   }
 };
 
-// ─── POST : Déposer une candidature publique (sans compte) ───────────────────
+// ─── POST : Déposer une candidature publique ─────────────────────────────────
+// ✅ RÈGLE : On ne peut candidater QUE si l'élection est en statut APPROUVEE
+//    (avant le début). Si EN_COURS ou TERMINEE → refus.
 export const submitPublicCandidature = async (req, res) => {
   try {
     const { id } = req.params;
@@ -95,11 +108,34 @@ export const submitPublicCandidature = async (req, res) => {
       WHERE id_election = ?
     `, [id]);
 
-    if (!election) return res.status(404).json({ message: "Élection introuvable." });
-    if (election.visibilite !== 'PUBLIQUE')  // ✅ corrigé
+    if (!election) {
+      return res.status(404).json({ message: "Élection introuvable." });
+    }
+
+    if (election.visibilite !== 'PUBLIQUE') {
       return res.status(403).json({ message: "Cette élection n'est pas publique." });
-    if (!['APPROUVEE', 'EN_COURS'].includes(election.statut)) {
-      return res.status(400).json({ message: "Les candidatures ne sont plus acceptées." });
+    }
+
+    // ✅ Seul le statut APPROUVEE permet de candidater
+    if (election.statut === 'EN_COURS') {
+      return res.status(400).json({
+        message: "Les candidatures sont fermées : l'élection est déjà en cours.",
+        code: "ELECTION_EN_COURS",
+      });
+    }
+
+    if (election.statut === 'TERMINEE') {
+      return res.status(400).json({
+        message: "Les candidatures sont fermées : l'élection est terminée.",
+        code: "ELECTION_TERMINEE",
+      });
+    }
+
+    if (election.statut !== 'APPROUVEE') {
+      return res.status(400).json({
+        message: "Les candidatures ne sont pas ouvertes pour cette élection.",
+        code: "CANDIDATURE_FERMEE",
+      });
     }
 
     if (email) {
@@ -167,13 +203,15 @@ export const initiatePublicVote = async (req, res) => {
     `, [id]);
 
     if (!election) return res.status(404).json({ message: "Élection introuvable." });
-    if (election.visibilite !== 'PUBLIQUE')  // ✅ corrigé
+    if (election.visibilite !== 'PUBLIQUE')
       return res.status(403).json({ message: "Élection non publique." });
     if (election.statut !== 'EN_COURS')
       return res.status(400).json({ message: "L'élection n'est pas en cours." });
 
-    const frais = election.frais_vote_xaf || 500;
+    // Montant minimum 100 XAF pour CamPay
+    const frais = Math.max(election.frais_vote_xaf || 100, 100);
 
+    // Créer le vote en attente
     const [voteResult] = await pool.execute(`
       INSERT INTO vote_public (election_id, candidat_public_id, telephone_electeur, nom_electeur, email_electeur, statut_paiement)
       VALUES (?, ?, ?, ?, ?, 'EN_ATTENTE')
@@ -181,40 +219,34 @@ export const initiatePublicVote = async (req, res) => {
 
     const vote_id = voteResult.insertId;
 
-    const campayRes = await fetch(`${process.env.CAMPAY_API_URL || 'https://demo.campay.net'}/api/collect/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Token ${process.env.CAMPAY_TOKEN}`,
-      },
-      body: JSON.stringify({
-        amount:      String(frais),
-        currency:    'XAF',
-        from:        telephone,
-        description: `Vote élection publique : ${election.titre}`,
-        external_reference: `vote_public_${vote_id}`,
-      }),
-    });
-
-    const campayData = await campayRes.json();
-
-    if (!campayData.reference) {
+    // Initier la collecte via le service CamPay
+    let campayData;
+    try {
+      campayData = await initierCollecte(telephone, `vote_public_${vote_id}`);
+    } catch (campayErr) {
       await pool.execute(`DELETE FROM vote_public WHERE id = ?`, [vote_id]);
-      return res.status(502).json({ message: "Erreur CamPay : " + (campayData.message || "Inconnue") });
+      console.error("❌ CamPay collect error:", campayErr.message);
+      return res.status(502).json({ message: "Erreur CamPay : " + campayErr.message });
+    }
+
+    if (!campayData.campay_reference) {
+      await pool.execute(`DELETE FROM vote_public WHERE id = ?`, [vote_id]);
+      return res.status(502).json({ message: "Erreur CamPay : référence manquante." });
     }
 
     await pool.execute(
       `UPDATE vote_public SET campay_reference = ? WHERE id = ?`,
-      [campayData.reference, vote_id]
+      [campayData.campay_reference, vote_id]
     );
 
     res.json({
       message:          "Notification envoyée. Confirmez sur votre téléphone.",
-      campay_reference: campayData.reference,
+      campay_reference: campayData.campay_reference,
       vote_id,
       frais,
     });
   } catch (err) {
+    console.error("❌ VOTE ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -224,11 +256,7 @@ export const checkPublicVoteStatus = async (req, res) => {
   try {
     const { reference } = req.params;
 
-    const campayRes = await fetch(
-      `${process.env.CAMPAY_API_URL || 'https://demo.campay.net'}/api/transaction/${reference}/`,
-      { headers: { 'Authorization': `Token ${process.env.CAMPAY_TOKEN}` } }
-    );
-    const data = await campayRes.json();
+    const data = await verifierStatutCampay(reference);
 
     if (data.status === 'SUCCESSFUL') {
       await pool.execute(
@@ -260,7 +288,7 @@ export const checkPublicVoteStatus = async (req, res) => {
             candidatNom:     voteInfo.candidat_nom,
             candidatPrenom:  voteInfo.candidat_prenom,
             titreElection:   voteInfo.election_titre,
-            frais:           voteInfo.frais_vote_xaf || 500,
+            frais:           voteInfo.frais_vote_xaf || 100,
             campayRef:       reference,
             election_id:     voteInfo.election_id,
           }).catch(err => console.error("❌ Email vote confirmé :", err));
@@ -276,6 +304,7 @@ export const checkPublicVoteStatus = async (req, res) => {
 
     res.json({ status: data.status });
   } catch (err) {
+    console.error("❌ CHECK STATUS ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -352,7 +381,7 @@ export const getElecteurDashboard = async (req, res) => {
       }
       if (v.statut_paiement === 'PAYÉ') {
         stats[v.id_election].nb_votes++;
-        stats[v.id_election].total_dépensé += (v.frais_vote_xaf || 500);
+        stats[v.id_election].total_dépensé += (v.frais_vote_xaf || 100);
       }
     }
 
@@ -472,6 +501,17 @@ export const reviewPublicCandidature = async (req, res) => {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
 // // backend/controllers/publicElection.controller.js
 // import { pool } from "../config/db.js";
 // import {
@@ -481,6 +521,7 @@ export const reviewPublicCandidature = async (req, res) => {
 //   sendCandidatureRejeteeEmail,
 //   sendVoteConfirmationEmail,
 // } from "../services/publicMailer.js";
+// import { initierCollecte, verifierStatutCampay } from "../services/campay.service.js";
 
 // // ─── GET : Toutes les élections publiques approuvées (page d'accueil) ─────────
 // export const getPublicElections = async (req, res) => {
@@ -496,6 +537,7 @@ export const reviewPublicCandidature = async (req, res) => {
 //         e.visibilite,
 //         e.frais_vote_xaf,
 //         e.tour_courant,
+//         e.photo_url,
 //         s.type,
 //         u.nom    AS nom_admin,
 //         u.prenom AS prenom_admin,
@@ -517,7 +559,7 @@ export const reviewPublicCandidature = async (req, res) => {
 //   }
 // };
 
-// // ─── GET : Détail d'une élection publique (candidats approuvés + résultats) ──
+// // ─── GET : Détail d'une élection publique ────────────────────────────────────
 // export const getPublicElectionDetail = async (req, res) => {
 //   try {
 //     const { id } = req.params;
@@ -563,7 +605,6 @@ export const reviewPublicCandidature = async (req, res) => {
 //       return res.status(400).json({ message: "Nom et prénom obligatoires." });
 //     }
 
-//     // Vérifier que l'élection est publique et accepte encore des candidatures
 //     const [[election]] = await pool.execute(`
 //       SELECT id_election, statut, visibilite, date_debut
 //       FROM election
@@ -571,12 +612,12 @@ export const reviewPublicCandidature = async (req, res) => {
 //     `, [id]);
 
 //     if (!election) return res.status(404).json({ message: "Élection introuvable." });
-//     if (election.visibilite !== 'PUBLIQUE') return res.status(403).json({ message: "Cette élection n'est pas publique." });
+//     if (election.visibilite !== 'PUBLIQUE')
+//       return res.status(403).json({ message: "Cette élection n'est pas publique." });
 //     if (!['APPROUVEE', 'EN_COURS'].includes(election.statut)) {
 //       return res.status(400).json({ message: "Les candidatures ne sont plus acceptées." });
 //     }
 
-//     // Vérifier doublon (même nom+prenom ou même email/téléphone)
 //     if (email) {
 //       const [[dup]] = await pool.execute(
 //         `SELECT id FROM candidat_public WHERE election_id = ? AND email = ?`, [id, email]
@@ -591,7 +632,6 @@ export const reviewPublicCandidature = async (req, res) => {
 
 //     const candidat_id = result.insertId;
 
-//     // ── Récupérer infos élection + admin pour les emails ──────────────────
 //     const [[elecFull]] = await pool.execute(`
 //       SELECT e.titre, u.email AS admin_email, u.nom AS admin_nom, u.prenom AS admin_prenom
 //       FROM election e
@@ -599,16 +639,12 @@ export const reviewPublicCandidature = async (req, res) => {
 //       WHERE e.id_election = ?
 //     `, [id]);
 
-//     // Email au candidat (accusé réception) — non bloquant
 //     sendCandidatureReceivedEmail({
-//       email,
-//       nom,
-//       prenom,
+//       email, nom, prenom,
 //       titreElection: elecFull.titre,
 //       candidat_id,
 //     }).catch(err => console.error("❌ Email candidature reçue :", err));
 
-//     // Email à l'admin (alerte nouvelle candidature) — non bloquant
 //     sendNewCandidatureAlertEmail({
 //       adminEmail:      elecFull.admin_email,
 //       adminNom:        elecFull.admin_nom,
@@ -634,7 +670,7 @@ export const reviewPublicCandidature = async (req, res) => {
 // // ─── POST : Initier un vote public payant via CamPay ─────────────────────────
 // export const initiatePublicVote = async (req, res) => {
 //   try {
-//     const { id } = req.params;                   // election_id
+//     const { id } = req.params;
 //     const { candidat_public_id, telephone, nom_electeur, email_electeur } = req.body;
 
 //     if (!candidat_public_id || !telephone) {
@@ -647,12 +683,15 @@ export const reviewPublicCandidature = async (req, res) => {
 //     `, [id]);
 
 //     if (!election) return res.status(404).json({ message: "Élection introuvable." });
-//     if (election.visibilite !== 'PUBLIQUE') return res.status(403).json({ message: "Élection non publique." });
-//     if (election.statut !== 'EN_COURS') return res.status(400).json({ message: "L'élection n'est pas en cours." });
+//     if (election.visibilite !== 'PUBLIQUE')
+//       return res.status(403).json({ message: "Élection non publique." });
+//     if (election.statut !== 'EN_COURS')
+//       return res.status(400).json({ message: "L'élection n'est pas en cours." });
 
-//     const frais = election.frais_vote_xaf || 500;
+//     // Montant minimum 100 XAF pour CamPay
+//     const frais = Math.max(election.frais_vote_xaf || 100, 100);
 
-//     // Créer l'entrée vote en attente
+//     // Créer le vote en attente
 //     const [voteResult] = await pool.execute(`
 //       INSERT INTO vote_public (election_id, candidat_public_id, telephone_electeur, nom_electeur, email_electeur, statut_paiement)
 //       VALUES (?, ?, ?, ?, ?, 'EN_ATTENTE')
@@ -660,43 +699,34 @@ export const reviewPublicCandidature = async (req, res) => {
 
 //     const vote_id = voteResult.insertId;
 
-//     // Initier paiement CamPay
-//     const campayRes = await fetch(`${process.env.CAMPAY_API_URL || 'https://demo.campay.net'}/api/collect/`, {
-//       method: 'POST',
-//       headers: {
-//         'Content-Type': 'application/json',
-//         'Authorization': `Token ${process.env.CAMPAY_TOKEN}`,
-//       },
-//       body: JSON.stringify({
-//         amount:      String(frais),
-//         currency:    'XAF',
-//         from:        telephone,
-//         description: `Vote élection publique : ${election.titre}`,
-//         external_reference: `vote_public_${vote_id}`,
-//       }),
-//     });
-
-//     const campayData = await campayRes.json();
-
-//     if (!campayData.reference) {
-//       // Annuler le vote en attente
+//     // Initier la collecte via le service CamPay (avec auth username/password)
+//     let campayData;
+//     try {
+//       campayData = await initierCollecte(telephone, `vote_public_${vote_id}`);
+//     } catch (campayErr) {
 //       await pool.execute(`DELETE FROM vote_public WHERE id = ?`, [vote_id]);
-//       return res.status(502).json({ message: "Erreur CamPay : " + (campayData.message || "Inconnue") });
+//       console.error("❌ CamPay collect error:", campayErr.message);
+//       return res.status(502).json({ message: "Erreur CamPay : " + campayErr.message });
 //     }
 
-//     // Sauvegarder la référence CamPay
+//     if (!campayData.campay_reference) {
+//       await pool.execute(`DELETE FROM vote_public WHERE id = ?`, [vote_id]);
+//       return res.status(502).json({ message: "Erreur CamPay : référence manquante." });
+//     }
+
 //     await pool.execute(
 //       `UPDATE vote_public SET campay_reference = ? WHERE id = ?`,
-//       [campayData.reference, vote_id]
+//       [campayData.campay_reference, vote_id]
 //     );
 
 //     res.json({
 //       message:          "Notification envoyée. Confirmez sur votre téléphone.",
-//       campay_reference: campayData.reference,
+//       campay_reference: campayData.campay_reference,
 //       vote_id,
 //       frais,
 //     });
 //   } catch (err) {
+//     console.error("❌ VOTE ERROR:", err);
 //     res.status(500).json({ error: err.message });
 //   }
 // };
@@ -706,23 +736,15 @@ export const reviewPublicCandidature = async (req, res) => {
 //   try {
 //     const { reference } = req.params;
 
-//     const campayRes = await fetch(
-//       `${process.env.CAMPAY_API_URL || 'https://demo.campay.net'}/api/transaction/${reference}/`,
-//       {
-//         headers: { 'Authorization': `Token ${process.env.CAMPAY_TOKEN}` }
-//       }
-//     );
-//     const data = await campayRes.json();
+//     // Vérifier le statut via le service CamPay (avec auth username/password)
+//     const data = await verifierStatutCampay(reference);
 
 //     if (data.status === 'SUCCESSFUL') {
-//       // Marquer le vote comme payé
 //       await pool.execute(
 //         `UPDATE vote_public SET statut_paiement = 'PAYÉ' WHERE campay_reference = ?`,
 //         [reference]
 //       );
 
-//       // ── Email confirmation vote (si on trouve un email via le vote) ──────
-//       // On tente de récupérer email_electeur si la colonne existe, sinon on passe
 //       try {
 //         const [[voteInfo]] = await pool.execute(`
 //           SELECT
@@ -747,12 +769,13 @@ export const reviewPublicCandidature = async (req, res) => {
 //             candidatNom:     voteInfo.candidat_nom,
 //             candidatPrenom:  voteInfo.candidat_prenom,
 //             titreElection:   voteInfo.election_titre,
-//             frais:           voteInfo.frais_vote_xaf || 500,
+//             frais:           voteInfo.frais_vote_xaf || 100,
 //             campayRef:       reference,
 //             election_id:     voteInfo.election_id,
 //           }).catch(err => console.error("❌ Email vote confirmé :", err));
 //         }
-//       } catch { /* email_electeur peut ne pas exister — on ignore */ }
+//       } catch { /* email_electeur peut ne pas exister */ }
+
 //     } else if (data.status === 'FAILED') {
 //       await pool.execute(
 //         `UPDATE vote_public SET statut_paiement = 'ECHEC' WHERE campay_reference = ?`,
@@ -762,11 +785,12 @@ export const reviewPublicCandidature = async (req, res) => {
 
 //     res.json({ status: data.status });
 //   } catch (err) {
+//     console.error("❌ CHECK STATUS ERROR:", err);
 //     res.status(500).json({ error: err.message });
 //   }
 // };
 
-// // ─── GET : Dashboard candidat (ses votes reçus) ───────────────────────────────
+// // ─── GET : Dashboard candidat ────────────────────────────────────────────────
 // export const getCandidatDashboard = async (req, res) => {
 //   try {
 //     const { candidat_id } = req.params;
@@ -780,7 +804,6 @@ export const reviewPublicCandidature = async (req, res) => {
 
 //     if (!candidat) return res.status(404).json({ message: "Candidat introuvable." });
 
-//     // Votes reçus confirmés
 //     const [votes] = await pool.execute(`
 //       SELECT nom_electeur, created_at
 //       FROM vote_public
@@ -788,7 +811,6 @@ export const reviewPublicCandidature = async (req, res) => {
 //       ORDER BY created_at DESC
 //     `, [candidat_id]);
 
-//     // Total des autres candidats (pour le classement)
 //     const [classement] = await pool.execute(`
 //       SELECT cp.id, cp.nom, cp.prenom, COUNT(vp.id) AS nb_votes
 //       FROM candidat_public cp
@@ -804,7 +826,7 @@ export const reviewPublicCandidature = async (req, res) => {
 //   }
 // };
 
-// // ─── GET : Dashboard électeur (ses votes passés par téléphone) ────────────────
+// // ─── GET : Dashboard électeur ─────────────────────────────────────────────────
 // export const getElecteurDashboard = async (req, res) => {
 //   try {
 //     const { telephone } = req.params;
@@ -828,20 +850,19 @@ export const reviewPublicCandidature = async (req, res) => {
 //       ORDER BY vp.created_at DESC
 //     `, [telephone]);
 
-//     // Stats par élection
 //     const stats = {};
 //     for (const v of votes) {
 //       if (!stats[v.id_election]) {
 //         stats[v.id_election] = {
-//           election_titre: v.election_titre,
+//           election_titre:  v.election_titre,
 //           election_statut: v.election_statut,
-//           nb_votes: 0,
-//           total_dépensé: 0,
+//           nb_votes:        0,
+//           total_dépensé:   0,
 //         };
 //       }
 //       if (v.statut_paiement === 'PAYÉ') {
 //         stats[v.id_election].nb_votes++;
-//         stats[v.id_election].total_dépensé += (v.frais_vote_xaf || 500);
+//         stats[v.id_election].total_dépensé += (v.frais_vote_xaf || 100);
 //       }
 //     }
 
@@ -851,13 +872,12 @@ export const reviewPublicCandidature = async (req, res) => {
 //   }
 // };
 
-// // ─── ADMIN : Lister les candidatures d'une élection publique ────────────────
+// // ─── ADMIN : Lister les candidatures ─────────────────────────────────────────
 // export const getPublicCandidatures = async (req, res) => {
 //   try {
 //     const { id } = req.params;
 //     const admin_id = req.user.id;
 
-//     // Vérifier que l'admin est propriétaire
 //     const [[election]] = await pool.execute(
 //       `SELECT admin_id FROM election WHERE id_election = ?`, [id]
 //     );
@@ -880,18 +900,17 @@ export const reviewPublicCandidature = async (req, res) => {
 //   }
 // };
 
-// // ─── ADMIN : Approuver / Rejeter une candidature publique ────────────────────
+// // ─── ADMIN : Approuver / Rejeter une candidature ──────────────────────────────
 // export const reviewPublicCandidature = async (req, res) => {
 //   try {
 //     const { candidat_id } = req.params;
-//     const { action } = req.body; // 'APPROUVE' | 'REJETE'
+//     const { action } = req.body;
 //     const admin_id = req.user.id;
 
 //     if (!['APPROUVE', 'REJETE'].includes(action)) {
 //       return res.status(400).json({ message: "Action invalide." });
 //     }
 
-//     // Vérifier propriété
 //     const [[cand]] = await pool.execute(`
 //       SELECT cp.election_id, e.admin_id
 //       FROM candidat_public cp
@@ -908,7 +927,6 @@ export const reviewPublicCandidature = async (req, res) => {
 //       [action, candidat_id]
 //     );
 
-//     // ── Récupérer infos complètes pour l'email ────────────────────────────
 //     const [[candInfo]] = await pool.execute(`
 //       SELECT cp.nom, cp.prenom, cp.email, e.titre AS election_titre, e.date_debut, e.id_election
 //       FROM candidat_public cp
@@ -942,3 +960,4 @@ export const reviewPublicCandidature = async (req, res) => {
 //     res.status(500).json({ error: err.message });
 //   }
 // };
+

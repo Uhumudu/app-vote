@@ -7,7 +7,8 @@ import { pool } from "../config/db.js";
 // Retourne toutes les transactions CamPay avec les infos admin
 export const getTransactionsCamPay = async (req, res) => {
   try {
-    const [rows] = await pool.execute(`
+    // ── Créations d'élections ──────────────────────────────────
+    const [creations] = await pool.execute(`
       SELECT
         tp.id_transaction,
         tp.campay_reference,
@@ -17,16 +18,59 @@ export const getTransactionsCamPay = async (req, res) => {
         tp.donnees_election,
         tp.date_creation,
         tp.date_confirmation,
-        u.id          AS admin_id,
-        u.nom         AS admin_nom,
-        u.prenom      AS admin_prenom,
-        u.email       AS admin_email
+        'CREATION_ELECTION'      AS type_transaction,
+        'Frais de création'      AS type_label,
+        u.nom                    AS admin_nom,
+        u.prenom                 AS admin_prenom,
+        u.email                  AS admin_email,
+        NULL                     AS election_titre,
+        NULL                     AS candidat_nom,
+        NULL                     AS candidat_prenom,
+        NULL                     AS telephone_electeur
       FROM transaction_paiement tp
       LEFT JOIN utilisateur u ON u.id = tp.admin_id
-      ORDER BY tp.date_creation DESC
     `);
 
-    return res.json(rows);
+    // ── Votes publics ──────────────────────────────────────────
+    const [votes] = await pool.execute(`
+      SELECT
+        vp.id                    AS id_transaction,
+        vp.campay_reference,
+        NULL                     AS external_reference,
+        e.frais_vote_xaf         AS montant,
+        vp.statut_paiement       AS statut,
+        NULL                     AS donnees_election,
+        vp.created_at            AS date_creation,
+        NULL                     AS date_confirmation,
+        'VOTE_PUBLIC'            AS type_transaction,
+        'Vote élection publique' AS type_label,
+        u.nom                    AS admin_nom,
+        u.prenom                 AS admin_prenom,
+        u.email                  AS admin_email,
+        e.titre                  AS election_titre,
+        cp.nom                   AS candidat_nom,
+        cp.prenom                AS candidat_prenom,
+        vp.telephone_electeur
+      FROM vote_public vp
+      JOIN election        e  ON e.id_election       = vp.election_id
+      JOIN candidat_public cp ON cp.id               = vp.candidat_public_id
+      LEFT JOIN utilisateur u ON u.id                = e.admin_id
+    `);
+
+    // Normaliser statuts votes → SUCCESSFUL / FAILED / PENDING
+    const votesNormalized = votes.map(v => ({
+      ...v,
+      statut: v.statut === 'PAYÉ' ? 'SUCCESSFUL'
+            : v.statut === 'ECHEC' ? 'FAILED'
+            : 'PENDING',
+    }));
+
+    // Fusionner et trier par date décroissante
+    const toutes = [...creations, ...votesNormalized].sort(
+      (a, b) => new Date(b.date_creation) - new Date(a.date_creation)
+    );
+
+    return res.json(toutes);
   } catch (error) {
     console.error("❌ Erreur getTransactionsCamPay:", error.message);
     return res.status(500).json({ error: error.message });

@@ -9,6 +9,8 @@ export const getAllElections = async (req, res) => {
              e.date_debut, e.date_fin, e.statut,
              e.duree_tour_minutes, e.tour_courant, e.nb_sieges,
              e.admin_id,
+             e.visibilite,        
+             e.photo_url,  
              s.type,
              u.nom AS nom_admin, u.prenom AS prenom_admin, u.email AS email_admin
       FROM election e

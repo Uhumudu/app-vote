@@ -194,11 +194,11 @@ export default function AjouterElecteur() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Nom" required icon={<FiUser size={13} />}>
                   <input type="text" value={nom} onChange={e => setNom(e.target.value)} required
-                    placeholder="Dupont" className={inputCls} />
+                    placeholder="Moussa" className={inputCls} />
                 </Field>
                 <Field label="Prénom" required icon={<FiUser size={13} />}>
                   <input type="text" value={prenom} onChange={e => setPrenom(e.target.value)} required
-                    placeholder="Jean" className={inputCls} />
+                    placeholder="Abdourahmane" className={inputCls} />
                 </Field>
               </div>
             </div>

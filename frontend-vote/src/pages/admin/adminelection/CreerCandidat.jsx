@@ -201,7 +201,7 @@ export default function CreerCandidat() {
                       <FiUser className="text-indigo-400" /> Nom complet <span className="text-red-400">*</span>
                     </label>
                     <input type="text" value={nom} onChange={e => setNom(e.target.value)} required
-                      placeholder="Ex : Jean Dupont"
+                      placeholder="Ex : Moussa Abdou"
                       className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none text-sm font-medium text-gray-900 placeholder-gray-400 transition-all bg-gray-50 focus:bg-white" />
                   </div>
                   <div>
@@ -225,7 +225,7 @@ export default function CreerCandidat() {
                     <FiHash className="text-indigo-400" /> Âge <span className="text-red-400">*</span>
                   </label>
                   <input type="number" value={age} onChange={e => setAge(e.target.value)} required min="18" max="120"
-                    placeholder="Ex : 35"
+                    placeholder="Ex : 33"
                     className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none text-sm font-medium text-gray-900 placeholder-gray-400 transition-all bg-gray-50 focus:bg-white" />
                 </div>
               </div>

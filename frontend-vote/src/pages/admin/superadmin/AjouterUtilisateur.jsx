@@ -3,7 +3,8 @@ import { FaVoteYea } from "react-icons/fa";
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import api from "../../../services/api";
-import illustration from './img2.webp'; // ton image
+import illustration from './img2.webp';
+import SuperAdminSidebar from "../../../components/SuperAdminSidebar";
 
 export default function AjouterUtilisateur() {
   const navigate = useNavigate();
@@ -48,37 +49,7 @@ export default function AjouterUtilisateur() {
     <div className="flex min-h-screen bg-gradient-to-br from-blue-100 via-blue-200 to-blue-300">
 
       {/* ===== SIDEBAR SUPER ADMIN ===== */}
-      <aside className="w-64 bg-white/80 backdrop-blur border-r p-6 flex flex-col">
-        <h1 className="text-2xl font-bold mb-10 text-blue-700">🗳 eVote – SuperAdmin</h1>
-
-        <nav className="flex-1 space-y-3">
-          <Link to="/superAdminDashboard" className="flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-blue-100">
-            <FiHome /> Tableau de bord
-          </Link>
-
-          <Link to="/admin/superadmin/utilisateursPage" className="flex items-center gap-4 px-4 py-3 rounded-xl bg-blue-100 font-semibold">
-            <FiUsers /> Utilisateurs
-          </Link>
-
-          <Link to="/admin/superadmin/electionsValider" className="flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-blue-100">
-            <FaVoteYea /> Élections à valider
-          </Link>
-
-          <Link to="/admin/superadmin/statistiques" className="flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-blue-100">
-            <FiUsers /> Statistiques
-          </Link>
-        </nav>
-
-        <div className="space-y-3 mt-6">
-          <Link to="/admin/superadmin/ParametresPage" className="flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-blue-100">
-            <FiSettings /> Paramètres
-          </Link>
-
-          <Link to="/logout" className="flex text-red-600 items-center gap-4 px-4 py-3 rounded-xl hover:bg-blue-100">
-            <FiLogOut /> Déconnexion
-          </Link>
-        </div>
-      </aside>
+      <SuperAdminSidebar active="elections" />
 
       {/* ===== CONTENU PRINCIPAL ===== */}
       <main className="flex-1 flex items-center justify-center p-8">
@@ -121,7 +92,7 @@ export default function AjouterUtilisateur() {
                 name="nom"
                 value={formData.nom}
                 onChange={handleChange}
-                placeholder="Nom complet"
+                placeholder="Nom"
                 required
                 className="w-full border px-4 py-2 rounded-lg focus:ring-2 focus:ring-blue-400"
               />

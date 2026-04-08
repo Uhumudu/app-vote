@@ -238,7 +238,7 @@ export default function RetraitCamPay() {
         {/* Header */}
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"28px",flexWrap:"wrap",gap:"12px" }}>
           <div>
-            <h2 style={{ fontSize:"22px",fontWeight:900,color:"#1e3a5f",margin:0 }}>Retraits CamPay</h2>
+            <h2 style={{ fontSize:"22px",fontWeight:900,color:"#1e3a5f",margin:0 }}>Retraits Mobile</h2>
             <p style={{ fontSize:"13px",color:"#6366f1",margin:"4px 0 0",fontWeight:500 }}>💸 Virements sortants — Super Admin</p>
           </div>
           <div style={{ display:"flex",gap:"8px" }}>
