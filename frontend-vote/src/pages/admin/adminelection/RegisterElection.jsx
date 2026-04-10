@@ -216,6 +216,7 @@ function ModalPaiement({ etape, telephone, setTelephone, msgPaiement, campayRef,
             </div>
           )}
 
+          {/* ✅ CORRECTION : redirection vers "/" + message explicatif */}
           {etape === "succes" && (
             <div style={{ textAlign: "center", padding: "12px 0" }}>
               <motion.div
@@ -231,14 +232,33 @@ function ModalPaiement({ etape, telephone, setTelephone, msgPaiement, campayRef,
               >
                 <FiCheckCircle size={36} color="#22c55e" />
               </motion.div>
+
               <h3 style={{ fontSize: "20px", fontWeight: 900, color: "#15803d", marginBottom: "12px" }}>
-                Paiement confirmé !
+                🎉 Élection soumise avec succès !
               </h3>
-              <p style={{ fontSize: "14px", color: "#64748b", lineHeight: 1.7, marginBottom: "28px" }}>
-                Votre compte a été créé et votre élection est en attente de validation par le Super Admin.
-                Vous recevrez une confirmation par e-mail.
-              </p>
-              <a href="/login" style={{
+
+              {/* Message explicatif */}
+              <div style={{
+                background: "#f0fdf4",
+                border: "1.5px solid #bbf7d0",
+                borderRadius: "14px",
+                padding: "16px 18px",
+                marginBottom: "24px",
+                textAlign: "left",
+              }}>
+                <p style={{
+                  fontSize: "13.5px", color: "#166534", lineHeight: 1.75, margin: 0,
+                }}>
+                  ✅ <strong>Votre élection a bien été soumise au Super Administrateur.</strong>
+                  <br /><br />
+                  ⏳ Veuillez patienter le temps que votre demande soit examinée et validée.
+                  <br /><br />
+                  📧 Vous recevrez un <strong>e-mail de confirmation</strong> dès que votre élection sera approuvée. Pensez à vérifier également vos courriers indésirables.
+                </p>
+              </div>
+
+              {/* Bouton vers la page d'accueil */}
+              <a href="/" style={{
                 display: "inline-flex", alignItems: "center", gap: "8px",
                 padding: "13px 28px", borderRadius: "14px",
                 background: "linear-gradient(135deg,#22c55e,#16a34a)",
@@ -246,7 +266,7 @@ function ModalPaiement({ etape, telephone, setTelephone, msgPaiement, campayRef,
                 fontSize: "15px", fontWeight: 800,
                 boxShadow: "0 6px 20px rgba(34,197,94,0.40)",
               }}>
-                Se connecter <FiArrowRight size={16} />
+                <FiHome size={16} /> Retour à l'accueil
               </a>
             </div>
           )}
@@ -317,11 +337,10 @@ function Field({ icon, label, type = "text", name, value, onChange, placeholder,
   );
 }
 
-// ✅ FIX : Les valeurs correspondent EXACTEMENT à l'enum DB : 'PUBLIQUE' | 'PRIVEE'
 function VisibiliteSelector({ value, onChange }) {
   const options = [
     {
-      value: "PRIVEE",                           // ✅ était "PRIVE" → corrigé en "PRIVEE"
+      value: "PRIVEE",
       icon: <FiEyeOff size={18} />,
       label: "🔒 Privée",
       desc: "Seul l'administrateur gère les candidats et les électeurs",
@@ -438,7 +457,7 @@ export default function RegisterElection() {
     dureeTourMinutes: 1440,
     nbSieges: 29,
     description: "",
-    visibilite: "PRIVEE",   // ✅ FIX : était "PRIVE" → corrigé en "PRIVEE" (enum DB)
+    visibilite: "PRIVEE",
   });
 
   const [photoFile,    setPhotoFile]    = useState(null);
@@ -514,8 +533,6 @@ export default function RegisterElection() {
         photoUrl = uploadRes.data.url;
       }
 
-      // ✅ formData.visibilite vaut maintenant "PRIVEE" ou "PUBLIQUE"
-      // → correspond exactement à l'enum MySQL enum('PUBLIQUE','PRIVEE')
       const registerRes = await api.post("/auth/register-and-create-election", {
         ...formData,
         endDate,
@@ -1002,6 +1019,9 @@ const styles = `
 
 
 
+
+
+
 // // src/pages/admin/adminelection/RegisterElection.jsx
 // import { useState, useRef } from "react";
 // import { motion, AnimatePresence } from "framer-motion";
@@ -1037,7 +1057,6 @@ const styles = `
 //   );
 // };
 
-// // Modal Paiement CamPay
 // function ModalPaiement({ etape, telephone, setTelephone, msgPaiement, campayRef, onPayer, onAnnuler, onReessayer }) {
 //   if (!["telephone", "attente", "succes", "erreur"].includes(etape)) return null;
 
@@ -1322,10 +1341,11 @@ const styles = `
 //   );
 // }
 
+// // ✅ FIX : Les valeurs correspondent EXACTEMENT à l'enum DB : 'PUBLIQUE' | 'PRIVEE'
 // function VisibiliteSelector({ value, onChange }) {
 //   const options = [
 //     {
-//       value: "PRIVE",
+//       value: "PRIVEE",                           // ✅ était "PRIVE" → corrigé en "PRIVEE"
 //       icon: <FiEyeOff size={18} />,
 //       label: "🔒 Privée",
 //       desc: "Seul l'administrateur gère les candidats et les électeurs",
@@ -1381,97 +1401,57 @@ const styles = `
 //   );
 // }
 
-// // ─── Composant Upload Photo ───────────────────────────────────────────────────
 // function PhotoUpload({ preview, onFileChange, onRemove }) {
 //   const inputRef = useRef(null);
 
 //   return (
 //     <div className="field-group">
-//       <label className="field-label"><FiImage size={13} /> Photo de l'élection <span style={{ color: "#9ca3af", fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>(optionnel)</span></label>
+//       <label className="field-label">
+//         <FiImage size={13} /> Photo de l'élection{" "}
+//         <span style={{ color: "#9ca3af", fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>(optionnel)</span>
+//       </label>
 
 //       {preview ? (
-//         // Apercu de l'image choisie
 //         <div style={{ position: "relative", borderRadius: "12px", overflow: "hidden", border: "2px solid #e0e7ff" }}>
-//           <img
-//             src={preview}
-//             alt="Aperçu"
-//             style={{ width: "100%", height: "160px", objectFit: "cover", display: "block" }}
-//           />
-//           <div style={{
-//             position: "absolute", inset: 0,
-//             background: "linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 50%)",
-//           }} />
-//           <div style={{
-//             position: "absolute", bottom: "10px", right: "10px",
-//             display: "flex", gap: "8px",
-//           }}>
-//             <button
-//               type="button"
-//               onClick={() => inputRef.current?.click()}
-//               style={{
-//                 padding: "6px 12px", borderRadius: "8px",
-//                 background: "rgba(255,255,255,0.9)", border: "none",
-//                 color: "#4f46e5", fontSize: "12px", fontWeight: 700,
-//                 cursor: "pointer", display: "flex", alignItems: "center", gap: "5px",
-//               }}
-//             >
+//           <img src={preview} alt="Aperçu" style={{ width: "100%", height: "160px", objectFit: "cover", display: "block" }} />
+//           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 50%)" }} />
+//           <div style={{ position: "absolute", bottom: "10px", right: "10px", display: "flex", gap: "8px" }}>
+//             <button type="button" onClick={() => inputRef.current?.click()} style={{
+//               padding: "6px 12px", borderRadius: "8px", background: "rgba(255,255,255,0.9)", border: "none",
+//               color: "#4f46e5", fontSize: "12px", fontWeight: 700, cursor: "pointer",
+//               display: "flex", alignItems: "center", gap: "5px",
+//             }}>
 //               <FiUpload size={11} /> Changer
 //             </button>
-//             <button
-//               type="button"
-//               onClick={onRemove}
-//               style={{
-//                 padding: "6px 10px", borderRadius: "8px",
-//                 background: "rgba(239,68,68,0.9)", border: "none",
-//                 color: "white", fontSize: "12px", fontWeight: 700,
-//                 cursor: "pointer", display: "flex", alignItems: "center", gap: "5px",
-//               }}
-//             >
+//             <button type="button" onClick={onRemove} style={{
+//               padding: "6px 10px", borderRadius: "8px", background: "rgba(239,68,68,0.9)", border: "none",
+//               color: "white", fontSize: "12px", fontWeight: 700, cursor: "pointer",
+//               display: "flex", alignItems: "center", gap: "5px",
+//             }}>
 //               <FiTrash2 size={11} />
 //             </button>
 //           </div>
 //         </div>
 //       ) : (
-//         // Zone de drop / clic
 //         <div
 //           onClick={() => inputRef.current?.click()}
-//           style={{
-//             border: "2px dashed #c7d2fe", borderRadius: "12px",
-//             padding: "28px 20px", textAlign: "center",
-//             cursor: "pointer", background: "#fafbff",
-//             transition: "all .2s",
-//           }}
+//           style={{ border: "2px dashed #c7d2fe", borderRadius: "12px", padding: "28px 20px", textAlign: "center", cursor: "pointer", background: "#fafbff", transition: "all .2s" }}
 //           onMouseEnter={e => { e.currentTarget.style.borderColor = "#6366f1"; e.currentTarget.style.background = "#eef2ff"; }}
 //           onMouseLeave={e => { e.currentTarget.style.borderColor = "#c7d2fe"; e.currentTarget.style.background = "#fafbff"; }}
 //         >
-//           <div style={{
-//             width: "44px", height: "44px", borderRadius: "12px",
-//             background: "#eef2ff", display: "flex", alignItems: "center",
-//             justifyContent: "center", margin: "0 auto 10px",
-//           }}>
+//           <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: "#eef2ff", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 10px" }}>
 //             <FiUpload size={20} color="#6366f1" />
 //           </div>
-//           <p style={{ margin: "0 0 4px", fontSize: "13px", fontWeight: 700, color: "#374151" }}>
-//             Cliquez pour ajouter une photo
-//           </p>
-//           <p style={{ margin: 0, fontSize: "11.5px", color: "#9ca3af" }}>
-//             PNG, JPG, WEBP — max 5 Mo
-//           </p>
+//           <p style={{ margin: "0 0 4px", fontSize: "13px", fontWeight: 700, color: "#374151" }}>Cliquez pour ajouter une photo</p>
+//           <p style={{ margin: 0, fontSize: "11.5px", color: "#9ca3af" }}>PNG, JPG, WEBP — max 5 Mo</p>
 //         </div>
 //       )}
 
-//       <input
-//         ref={inputRef}
-//         type="file"
-//         accept="image/png,image/jpeg,image/webp,image/gif"
-//         style={{ display: "none" }}
-//         onChange={onFileChange}
-//       />
+//       <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" style={{ display: "none" }} onChange={onFileChange} />
 //     </div>
 //   );
 // }
 
-// // ─── Composant principal ──────────────────────────────────────────────────────
 // export default function RegisterElection() {
 //   const [focused,  setFocused]  = useState(null);
 //   const [loading,  setLoading]  = useState(false);
@@ -1482,13 +1462,11 @@ const styles = `
 //     dureeTourMinutes: 1440,
 //     nbSieges: 29,
 //     description: "",
-//     visibilite: "PRIVE",
+//     visibilite: "PRIVEE",   // ✅ FIX : était "PRIVE" → corrigé en "PRIVEE" (enum DB)
 //   });
 
-//   // ── PHOTO ──
 //   const [photoFile,    setPhotoFile]    = useState(null);
 //   const [photoPreview, setPhotoPreview] = useState(null);
-
 //   const [etapePaiement, setEtapePaiement] = useState("");
 //   const [telephone,     setTelephone]     = useState("");
 //   const [campayRef,     setCampayRef]     = useState(null);
@@ -1500,30 +1478,21 @@ const styles = `
 //     const { name, value } = e.target;
 //     setFormData(prev => ({
 //       ...prev,
-//       [name]: (name === "dureeTourMinutes" || name === "nbSieges")
-//         ? parseInt(value) || 0
-//         : value,
+//       [name]: (name === "dureeTourMinutes" || name === "nbSieges") ? parseInt(value) || 0 : value,
 //     }));
 //   };
 
 //   const handleVisibiliteChange = (val) => setFormData(prev => ({ ...prev, visibilite: val }));
 
-//   // Gestion photo
 //   const handlePhotoChange = (e) => {
 //     const file = e.target.files?.[0];
 //     if (!file) return;
-//     if (file.size > 5 * 1024 * 1024) {
-//       alert("La photo ne doit pas dépasser 5 Mo.");
-//       return;
-//     }
+//     if (file.size > 5 * 1024 * 1024) { alert("La photo ne doit pas dépasser 5 Mo."); return; }
 //     setPhotoFile(file);
 //     setPhotoPreview(URL.createObjectURL(file));
 //   };
 
-//   const handlePhotoRemove = () => {
-//     setPhotoFile(null);
-//     setPhotoPreview(null);
-//   };
+//   const handlePhotoRemove = () => { setPhotoFile(null); setPhotoPreview(null); };
 
 //   const dateFinTour1 = isListe && formData.startDate
 //     ? (() => {
@@ -1539,12 +1508,10 @@ const styles = `
 //   const handleSubmit = async (e) => {
 //     e.preventDefault();
 //     if (!isListe && new Date(formData.endDate) <= new Date(formData.startDate)) {
-//       alert("La date de fin doit être supérieure à la date de début !");
-//       return;
+//       alert("La date de fin doit être supérieure à la date de début !"); return;
 //     }
 //     if (isListe && (!formData.nbSieges || formData.nbSieges < 1)) {
-//       alert("Le nombre de sièges doit être supérieur à 0.");
-//       return;
+//       alert("Le nombre de sièges doit être supérieur à 0."); return;
 //     }
 //     setTelephone("");
 //     setEtapePaiement("telephone");
@@ -1552,8 +1519,7 @@ const styles = `
 
 //   const handlePayer = async () => {
 //     if (!/^[0-9]{9}$/.test(telephone)) {
-//       alert("Numéro invalide. Saisissez 9 chiffres sans l'indicatif.");
-//       return;
+//       alert("Numéro invalide. Saisissez 9 chiffres sans l'indicatif."); return;
 //     }
 
 //     setLoading(true);
@@ -1561,37 +1527,32 @@ const styles = `
 
 //     try {
 //       const endDate = isListe
-//         ? toLocalMySQL((() => {
-//             const d = new Date(formData.startDate);
-//             d.setMinutes(d.getMinutes() + formData.dureeTourMinutes);
-//             return d;
-//           })())
+//         ? toLocalMySQL((() => { const d = new Date(formData.startDate); d.setMinutes(d.getMinutes() + formData.dureeTourMinutes); return d; })())
 //         : toLocalMySQL(new Date(formData.endDate));
 
-//       // Upload photo en premier si présente
 //       let photoUrl = null;
 //       if (photoFile) {
 //         const fd = new FormData();
 //         fd.append("photo", photoFile);
-//         const uploadRes = await api.post("/upload/election-photo", fd, {
-//           headers: { "Content-Type": "multipart/form-data" },
-//         });
+//         const uploadRes = await api.post("/upload/election-photo", fd, { headers: { "Content-Type": "multipart/form-data" } });
 //         photoUrl = uploadRes.data.url;
 //       }
 
+//       // ✅ formData.visibilite vaut maintenant "PRIVEE" ou "PUBLIQUE"
+//       // → correspond exactement à l'enum MySQL enum('PUBLIQUE','PRIVEE')
 //       const registerRes = await api.post("/auth/register-and-create-election", {
 //         ...formData,
 //         endDate,
 //         dureeTourMinutes: isListe ? formData.dureeTourMinutes : null,
 //         nbSieges:         isListe ? formData.nbSieges         : null,
 //         visibilite:       formData.visibilite,
-//         photoUrl,  // envoyé au backend
+//         photoUrl,
 //       });
 
 //       const paiementRes = await api.post("/campay/initier-paiement-public", {
-//         telephone:        `237${telephone}`,
-//         user_id:          registerRes.data.userId,
-//         election_id:      registerRes.data.electionId,
+//         telephone:   `237${telephone}`,
+//         user_id:     registerRes.data.userId,
+//         election_id: registerRes.data.electionId,
 //         donnees_election: {
 //           titre:            formData.electionName,
 //           description:      formData.description,
@@ -1621,20 +1582,16 @@ const styles = `
 //       try {
 //         const { data } = await api.get(`/campay/statut-public/${reference}`);
 //         if (data.status === "SUCCESSFUL") {
-//           clearInterval(interval);
-//           setEtapePaiement("succes");
-//           setLoading(false);
+//           clearInterval(interval); setEtapePaiement("succes"); setLoading(false);
 //         } else if (data.status === "FAILED" || tentatives >= 12) {
 //           clearInterval(interval);
 //           setMsgPaiement("Paiement échoué ou délai de 60 secondes dépassé. Réessayez.");
-//           setEtapePaiement("erreur");
-//           setLoading(false);
+//           setEtapePaiement("erreur"); setLoading(false);
 //         }
 //       } catch {
 //         clearInterval(interval);
 //         setMsgPaiement("Erreur lors de la vérification du paiement.");
-//         setEtapePaiement("erreur");
-//         setLoading(false);
+//         setEtapePaiement("erreur"); setLoading(false);
 //       }
 //     }, 5000);
 //   };
@@ -1677,7 +1634,6 @@ const styles = `
 //             animate={{ opacity: 1, y: 0 }}
 //             transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
 //           >
-//             {/* Image panel */}
 //             <div className="reg-image-panel">
 //               <div className="img-glow" />
 //               <img src={Election} alt="Création d'élection" className="reg-img" />
@@ -1686,15 +1642,12 @@ const styles = `
 //                 <p className="img-quote">"Organisez des élections transparentes, sécurisées et accessibles à tous."</p>
 //                 <div className="img-features">
 //                   {["Chiffrement des données", "Résultats en temps réel", "Multi-rôles"].map((f, i) => (
-//                     <div key={i} className="img-feature-item">
-//                       <FiCheckCircle size={14} /> {f}
-//                     </div>
+//                     <div key={i} className="img-feature-item"><FiCheckCircle size={14} /> {f}</div>
 //                   ))}
 //                 </div>
 //                 <div style={{
 //                   marginTop: "20px", background: "rgba(255,255,255,0.15)",
-//                   border: "1px solid rgba(255,255,255,0.3)",
-//                   borderRadius: "12px", padding: "12px 16px",
+//                   border: "1px solid rgba(255,255,255,0.3)", borderRadius: "12px", padding: "12px 16px",
 //                   display: "flex", alignItems: "center", justifyContent: "space-between",
 //                 }}>
 //                   <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "white" }}>
@@ -1705,9 +1658,9 @@ const styles = `
 //                     </div>
 //                   </div>
 //                   <span style={{
-//                     background: "rgba(255,255,255,0.2)", color: "white",
-//                     fontWeight: 900, fontSize: "14px", padding: "4px 12px",
-//                     borderRadius: "8px", border: "1px solid rgba(255,255,255,0.3)",
+//                     background: "rgba(255,255,255,0.2)", color: "white", fontWeight: 900,
+//                     fontSize: "14px", padding: "4px 12px", borderRadius: "8px",
+//                     border: "1px solid rgba(255,255,255,0.3)",
 //                   }}>
 //                     {FRAIS_ELECTION} XAF
 //                   </span>
@@ -1715,7 +1668,6 @@ const styles = `
 //               </div>
 //             </div>
 
-//             {/* Formulaire */}
 //             <div className="reg-form-panel">
 //               <div className="form-header">
 //                 <span className="form-badge">Nouvelle élection</span>
@@ -1725,21 +1677,19 @@ const styles = `
 
 //               <form onSubmit={handleSubmit} className="reg-form">
 
-//                 {/* Section 01 */}
 //                 <div className="form-section">
 //                   <div className="section-label">
 //                     <span className="section-num">01</span>
 //                     <span>Informations du créateur</span>
 //                   </div>
 //                   <div className="fields-grid-2">
-//                     <Field icon={<FiUser size={15}/>}  label="Nom"          name="nom"        value={formData.nom}        onChange={handleChange} placeholder="kengne"         focused={focused} setFocused={setFocused} />
+//                     <Field icon={<FiUser size={15}/>}  label="Nom"          name="nom"        value={formData.nom}        onChange={handleChange} placeholder="kengne"          focused={focused} setFocused={setFocused} />
 //                     <Field icon={<FiUser size={15}/>}  label="Prénom"       name="prenom"     value={formData.prenom}     onChange={handleChange} placeholder="Merlin"           focused={focused} setFocused={setFocused} />
 //                     <Field icon={<FiMail size={15}/>}  label="Email"        name="email"      value={formData.email}      onChange={handleChange} placeholder="merlin@email.com" focused={focused} setFocused={setFocused} type="email" />
-//                     <Field icon={<FiLock size={15}/>}  label="Mot de passe" name="motDePasse" value={formData.motDePasse} onChange={handleChange} placeholder="••••••••"       focused={focused} setFocused={setFocused} type="password" />
+//                     <Field icon={<FiLock size={15}/>}  label="Mot de passe" name="motDePasse" value={formData.motDePasse} onChange={handleChange} placeholder="••••••••"        focused={focused} setFocused={setFocused} type="password" />
 //                   </div>
 //                 </div>
 
-//                 {/* Section 02 */}
 //                 <div className="form-section">
 //                   <div className="section-label">
 //                     <span className="section-num">02</span>
@@ -1749,12 +1699,7 @@ const styles = `
 
 //                     <Field icon={<FiType size={15}/>} label="Nom de l'élection" name="electionName" value={formData.electionName} onChange={handleChange} placeholder="Ex : Élection du bureau étudiant 2026" focused={focused} setFocused={setFocused} />
 
-//                     {/* PHOTO UPLOAD */}
-//                     <PhotoUpload
-//                       preview={photoPreview}
-//                       onFileChange={handlePhotoChange}
-//                       onRemove={handlePhotoRemove}
-//                     />
+//                     <PhotoUpload preview={photoPreview} onFileChange={handlePhotoChange} onRemove={handlePhotoRemove} />
 
 //                     <VisibiliteSelector value={formData.visibilite} onChange={handleVisibiliteChange} />
 
@@ -1895,7 +1840,6 @@ const styles = `
 //                   </div>
 //                 </div>
 
-//                 {/* Section 03 — Frais */}
 //                 <div className="form-section">
 //                   <div className="section-label">
 //                     <span className="section-num">03</span>
@@ -1909,12 +1853,8 @@ const styles = `
 //                       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
 //                         <span style={{ fontSize: "22px" }}>💳</span>
 //                         <div>
-//                           <p style={{ margin: 0, fontSize: "13px", fontWeight: 800, color: "#3730a3" }}>
-//                             Frais de création d'élection
-//                           </p>
-//                           <p style={{ margin: 0, fontSize: "11px", color: "#6366f1" }}>
-//                             Paiement sécurisé via Mobile Money (MTN / Orange)
-//                           </p>
+//                           <p style={{ margin: 0, fontSize: "13px", fontWeight: 800, color: "#3730a3" }}>Frais de création d'élection</p>
+//                           <p style={{ margin: 0, fontSize: "11px", color: "#6366f1" }}>Paiement sécurisé via Mobile Money (MTN / Orange)</p>
 //                         </div>
 //                       </div>
 //                       <span style={{
@@ -1931,9 +1871,8 @@ const styles = `
 //                         { label: "Orange Money", color: "#ea580c", bg: "#fff7ed" },
 //                       ].map(op => (
 //                         <div key={op.label} style={{
-//                           flex: 1, padding: "8px", borderRadius: "8px",
-//                           background: op.bg, textAlign: "center",
-//                           fontSize: "11px", fontWeight: 700, color: op.color,
+//                           flex: 1, padding: "8px", borderRadius: "8px", background: op.bg,
+//                           textAlign: "center", fontSize: "11px", fontWeight: 700, color: op.color,
 //                           border: `1px solid ${op.color}30`,
 //                         }}>
 //                           ✓ {op.label}
@@ -2054,4 +1993,5 @@ const styles = `
 //     .nav-link{padding:8px 12px;}
 //   }
 // `;
+
 
