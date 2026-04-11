@@ -9,6 +9,9 @@ import {
 } from "../services/publicMailer.js";
 import { initierCollecte, verifierStatutCampay } from "../services/campay.service.js";
 
+// ✅ Frais fixe : 10 XAF par voix (référence unique pour toute la logique backend)
+const FRAIS_PAR_VOIX = 10;
+
 // ─── GET : Toutes les élections publiques (page d'accueil) ───────────────────
 export const getPublicElections = async (req, res) => {
   try {
@@ -82,18 +85,20 @@ export const getPublicElectionDetail = async (req, res) => {
       ORDER BY nb_votes DESC
     `, [id]);
 
-    res.json({ election, candidats });
+    // ✅ On retourne toujours frais_vote_xaf = 10 pour cohérence avec le front
+    res.json({
+      election: { ...election, frais_vote_xaf: FRAIS_PAR_VOIX },
+      candidats,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
 // ─── POST : Déposer une candidature publique ─────────────────────────────────
-// ✅ FIX PRINCIPAL : photo_url récupéré et inséré en base
 export const submitPublicCandidature = async (req, res) => {
   try {
     const { id } = req.params;
-    // ✅ FIX : photo_url inclus dans la déstructuration
     const { nom, prenom, email, telephone, bio, photo_url } = req.body;
 
     if (!nom || !prenom) {
@@ -142,7 +147,6 @@ export const submitPublicCandidature = async (req, res) => {
       if (dup) return res.status(409).json({ message: "Une candidature avec cet email existe déjà." });
     }
 
-    // ✅ FIX : photo_url ajouté dans le INSERT (était absent avant !)
     const [result] = await pool.execute(`
       INSERT INTO candidat_public (election_id, nom, prenom, email, telephone, bio, photo_url)
       VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -207,7 +211,7 @@ export const initiatePublicVote = async (req, res) => {
     }
 
     const [[election]] = await pool.execute(`
-      SELECT id_election, statut, visibilite, frais_vote_xaf, titre
+      SELECT id_election, statut, visibilite, titre
       FROM election WHERE id_election = ?
     `, [id]);
 
@@ -225,20 +229,24 @@ export const initiatePublicVote = async (req, res) => {
       return res.status(404).json({ message: "Candidat introuvable ou non approuvé." });
     }
 
-    const fraisUnitaire = election.frais_vote_xaf || 100;
-    const montantTotal  = Math.max(fraisUnitaire * nbVoixInt, 100);
+    // ✅ Calcul du montant : 10 XAF × nb_voix (ignoré la colonne frais_vote_xaf en base)
+    // CamPay exige un minimum de 100 XAF — on respecte ce minimum si nécessaire
+    const montantCalcule = FRAIS_PAR_VOIX * nbVoixInt;
+    const montantCampay  = Math.max(montantCalcule, 100); // minimum CamPay
 
+    // ✅ On enregistre le montant réel calculé (pas le minimum CamPay) en base pour les stats
     const [voteResult] = await pool.execute(`
       INSERT INTO vote_public
         (election_id, candidat_public_id, telephone_electeur, nom_electeur, email_electeur, nb_voix, montant_xaf, statut_paiement)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'EN_ATTENTE')
-    `, [id, candidat_public_id, telephone, nom_electeur || null, email_electeur || null, nbVoixInt, montantTotal]);
+    `, [id, candidat_public_id, telephone, nom_electeur || null, email_electeur || null, nbVoixInt, montantCalcule]);
 
     const vote_id = voteResult.insertId;
 
     let campayData;
     try {
-      campayData = await initierCollecte(telephone, `vote_public_${vote_id}`, montantTotal);
+      // ✅ CamPay reçoit le montant total calculé (nbVoix × 10 XAF)
+      campayData = await initierCollecte(telephone, `vote_public_${vote_id}`, montantCampay);
     } catch (campayErr) {
       await pool.execute(`DELETE FROM vote_public WHERE id = ?`, [vote_id]);
       console.error("❌ CamPay collect error:", campayErr.message);
@@ -255,13 +263,36 @@ export const initiatePublicVote = async (req, res) => {
       [campayData.campay_reference, vote_id]
     );
 
+    // ✅ On programme l'expiration automatique côté serveur à 35 secondes
+    // (5s de marge par rapport aux 30s du front pour éviter les race conditions)
+    setTimeout(async () => {
+      try {
+        const [[voteActuel]] = await pool.execute(
+          `SELECT statut_paiement FROM vote_public WHERE id = ?`,
+          [vote_id]
+        );
+        // Si toujours EN_ATTENTE après 35s, on le marque EXPIRÉ
+        if (voteActuel && voteActuel.statut_paiement === 'EN_ATTENTE') {
+          await pool.execute(
+            `UPDATE vote_public SET statut_paiement = 'EXPIRE' WHERE id = ?`,
+            [vote_id]
+          );
+          console.log(`⏱ Vote #${vote_id} expiré après 35 secondes (ref: ${campayData.campay_reference})`);
+        }
+      } catch (e) {
+        console.error(`❌ Erreur expiration vote #${vote_id}:`, e.message);
+      }
+    }, 35_000); // 35 000 ms = 35 secondes
+
     res.json({
-      message:          "Notification envoyée. Confirmez sur votre téléphone.",
-      campay_reference: campayData.campay_reference,
+      message:           "Notification envoyée. Confirmez le paiement sur votre téléphone.",
+      campay_reference:  campayData.campay_reference,
       vote_id,
-      nb_voix:          nbVoixInt,
-      frais_unitaire:   fraisUnitaire,
-      montant_total:    montantTotal,
+      nb_voix:           nbVoixInt,
+      frais_unitaire:    FRAIS_PAR_VOIX,
+      montant_total:     montantCalcule,
+      montant_campay:    montantCampay,
+      expires_in:        30, // secondes (info pour le front)
     });
   } catch (err) {
     console.error("❌ VOTE ERROR:", err);
@@ -273,6 +304,16 @@ export const initiatePublicVote = async (req, res) => {
 export const checkPublicVoteStatus = async (req, res) => {
   try {
     const { reference } = req.params;
+
+    // ✅ Vérifier d'abord si le vote a expiré côté base avant d'appeler CamPay
+    const [[voteLocal]] = await pool.execute(
+      `SELECT statut_paiement FROM vote_public WHERE campay_reference = ?`,
+      [reference]
+    );
+
+    if (voteLocal && voteLocal.statut_paiement === 'EXPIRE') {
+      return res.json({ status: 'FAILED', reason: 'EXPIRED' });
+    }
 
     const data = await verifierStatutCampay(reference);
 
@@ -292,7 +333,6 @@ export const checkPublicVoteStatus = async (req, res) => {
             vp.nb_voix,
             vp.montant_xaf,
             e.titre    AS election_titre,
-            e.frais_vote_xaf,
             cp.nom     AS candidat_nom,
             cp.prenom  AS candidat_prenom
           FROM vote_public vp
@@ -309,7 +349,7 @@ export const checkPublicVoteStatus = async (req, res) => {
             candidatPrenom:  voteInfo.candidat_prenom,
             titreElection:   voteInfo.election_titre,
             nbVoix:          voteInfo.nb_voix || 1,
-            montantTotal:    voteInfo.montant_xaf || voteInfo.frais_vote_xaf || 100,
+            montantTotal:    voteInfo.montant_xaf || FRAIS_PAR_VOIX,
             campayRef:       reference,
             election_id:     voteInfo.election_id,
           }).catch(err => console.error("❌ Email vote confirmé :", err));
@@ -333,13 +373,12 @@ export const checkPublicVoteStatus = async (req, res) => {
 };
 
 // ─── GET : Dashboard candidat ────────────────────────────────────────────────
-// ✅ FIX : photo_url inclus dans la requête classement
 export const getCandidatDashboard = async (req, res) => {
   try {
     const { candidat_id } = req.params;
 
     const [[candidat]] = await pool.execute(`
-      SELECT cp.*, e.titre AS election_titre, e.date_debut, e.date_fin, e.statut AS election_statut, e.frais_vote_xaf
+      SELECT cp.*, e.titre AS election_titre, e.date_debut, e.date_fin, e.statut AS election_statut
       FROM candidat_public cp
       JOIN election e ON e.id_election = cp.election_id
       WHERE cp.id = ?
@@ -354,7 +393,6 @@ export const getCandidatDashboard = async (req, res) => {
       ORDER BY created_at DESC
     `, [candidat_id]);
 
-    // ✅ FIX : photo_url ajouté dans le SELECT du classement
     const [classement] = await pool.execute(`
       SELECT cp.id, cp.nom, cp.prenom, cp.photo_url, COALESCE(SUM(vp.nb_voix), 0) AS nb_votes
       FROM candidat_public cp
@@ -364,7 +402,7 @@ export const getCandidatDashboard = async (req, res) => {
       ORDER BY nb_votes DESC
     `, [candidat.election_id]);
 
-    res.json({ candidat, votes, classement });
+    res.json({ candidat, votes, classement, frais_par_voix: FRAIS_PAR_VOIX });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -386,7 +424,6 @@ export const getElecteurDashboard = async (req, res) => {
         e.titre AS election_titre,
         e.id_election,
         e.statut AS election_statut,
-        e.frais_vote_xaf,
         cp.nom    AS candidat_nom,
         cp.prenom AS candidat_prenom
       FROM vote_public vp
@@ -408,7 +445,8 @@ export const getElecteurDashboard = async (req, res) => {
       }
       if (v.statut_paiement === 'PAYÉ') {
         stats[v.id_election].nb_votes      += (v.nb_voix || 1);
-        stats[v.id_election].total_dépensé += (v.montant_xaf || v.frais_vote_xaf || 100);
+        // ✅ Montant réel enregistré en base (nb_voix × 10 XAF)
+        stats[v.id_election].total_dépensé += (v.montant_xaf || FRAIS_PAR_VOIX);
       }
     }
 
@@ -532,6 +570,14 @@ export const reviewPublicCandidature = async (req, res) => {
 
 
 
+
+
+
+
+
+
+
+
 // // backend/controllers/publicElection.controller.js
 // import { pool } from "../config/db.js";
 // import {
@@ -544,7 +590,6 @@ export const reviewPublicCandidature = async (req, res) => {
 // import { initierCollecte, verifierStatutCampay } from "../services/campay.service.js";
 
 // // ─── GET : Toutes les élections publiques (page d'accueil) ───────────────────
-// // Inclut les élections TERMINÉES depuis moins de 7 jours
 // export const getPublicElections = async (req, res) => {
 //   try {
 //     const [rows] = await pool.execute(`
@@ -601,7 +646,6 @@ export const reviewPublicCandidature = async (req, res) => {
 
 //     if (!election) return res.status(404).json({ message: "Élection introuvable ou non publique." });
 
-//     //  nb_votes = somme de toutes les voix (chaque enregistrement peut valoir plusieurs voix)
 //     const [candidats] = await pool.execute(`
 //       SELECT
 //         cp.id,
@@ -625,10 +669,12 @@ export const reviewPublicCandidature = async (req, res) => {
 // };
 
 // // ─── POST : Déposer une candidature publique ─────────────────────────────────
+// // ✅ FIX PRINCIPAL : photo_url récupéré et inséré en base
 // export const submitPublicCandidature = async (req, res) => {
 //   try {
 //     const { id } = req.params;
-//     const { nom, prenom, email, telephone, bio } = req.body;
+//     // ✅ FIX : photo_url inclus dans la déstructuration
+//     const { nom, prenom, email, telephone, bio, photo_url } = req.body;
 
 //     if (!nom || !prenom) {
 //       return res.status(400).json({ message: "Nom et prénom obligatoires." });
@@ -676,10 +722,11 @@ export const reviewPublicCandidature = async (req, res) => {
 //       if (dup) return res.status(409).json({ message: "Une candidature avec cet email existe déjà." });
 //     }
 
+//     // ✅ FIX : photo_url ajouté dans le INSERT (était absent avant !)
 //     const [result] = await pool.execute(`
-//       INSERT INTO candidat_public (election_id, nom, prenom, email, telephone, bio)
-//       VALUES (?, ?, ?, ?, ?, ?)
-//     `, [id, nom, prenom, email || null, telephone || null, bio || null]);
+//       INSERT INTO candidat_public (election_id, nom, prenom, email, telephone, bio, photo_url)
+//       VALUES (?, ?, ?, ?, ?, ?, ?)
+//     `, [id, nom, prenom, email || null, telephone || null, bio || null, photo_url || null]);
 
 //     const candidat_id = result.insertId;
 
@@ -719,15 +766,13 @@ export const reviewPublicCandidature = async (req, res) => {
 // };
 
 // // ─── POST : Initier un vote public payant via CamPay ─────────────────────────
-// // ✅ NOUVEAU : accepte nb_voix (nombre de voix souhaité, défaut 1)
-// //    Le montant total = frais_vote_xaf * nb_voix (minimum 100 XAF pour CamPay)
 // export const initiatePublicVote = async (req, res) => {
 //   try {
 //     const { id } = req.params;
 //     const {
 //       candidat_public_id,
 //       telephone,
-//       nb_voix       = 1,   
+//       nb_voix       = 1,
 //       nom_electeur,
 //       email_electeur,
 //     } = req.body;
@@ -736,7 +781,6 @@ export const reviewPublicCandidature = async (req, res) => {
 //       return res.status(400).json({ message: "Candidat et téléphone obligatoires." });
 //     }
 
-//     // Validation nb_voix
 //     const nbVoixInt = parseInt(nb_voix, 10);
 //     if (isNaN(nbVoixInt) || nbVoixInt < 1 || nbVoixInt > 100) {
 //       return res.status(400).json({ message: "Le nombre de voix doit être compris entre 1 et 100." });
@@ -753,7 +797,6 @@ export const reviewPublicCandidature = async (req, res) => {
 //     if (election.statut !== 'EN_COURS')
 //       return res.status(400).json({ message: "L'élection n'est pas en cours." });
 
-//     // Vérifier que le candidat appartient bien à cette élection
 //     const [[candidat]] = await pool.execute(`
 //       SELECT id FROM candidat_public WHERE id = ? AND election_id = ? AND statut = 'APPROUVE'
 //     `, [candidat_public_id, id]);
@@ -762,11 +805,9 @@ export const reviewPublicCandidature = async (req, res) => {
 //       return res.status(404).json({ message: "Candidat introuvable ou non approuvé." });
 //     }
 
-//     // ✅ Calcul du montant total : frais unitaire × nb_voix, minimum 100 XAF pour CamPay
 //     const fraisUnitaire = election.frais_vote_xaf || 100;
 //     const montantTotal  = Math.max(fraisUnitaire * nbVoixInt, 100);
 
-//     // Créer le vote en attente avec nb_voix
 //     const [voteResult] = await pool.execute(`
 //       INSERT INTO vote_public
 //         (election_id, candidat_public_id, telephone_electeur, nom_electeur, email_electeur, nb_voix, montant_xaf, statut_paiement)
@@ -775,7 +816,6 @@ export const reviewPublicCandidature = async (req, res) => {
 
 //     const vote_id = voteResult.insertId;
 
-//     // Initier la collecte via CamPay avec le montant total calculé
 //     let campayData;
 //     try {
 //       campayData = await initierCollecte(telephone, `vote_public_${vote_id}`, montantTotal);
@@ -873,6 +913,7 @@ export const reviewPublicCandidature = async (req, res) => {
 // };
 
 // // ─── GET : Dashboard candidat ────────────────────────────────────────────────
+// // ✅ FIX : photo_url inclus dans la requête classement
 // export const getCandidatDashboard = async (req, res) => {
 //   try {
 //     const { candidat_id } = req.params;
@@ -893,8 +934,9 @@ export const reviewPublicCandidature = async (req, res) => {
 //       ORDER BY created_at DESC
 //     `, [candidat_id]);
 
+//     // ✅ FIX : photo_url ajouté dans le SELECT du classement
 //     const [classement] = await pool.execute(`
-//       SELECT cp.id, cp.nom, cp.prenom, COALESCE(SUM(vp.nb_voix), 0) AS nb_votes
+//       SELECT cp.id, cp.nom, cp.prenom, cp.photo_url, COALESCE(SUM(vp.nb_voix), 0) AS nb_votes
 //       FROM candidat_public cp
 //       LEFT JOIN vote_public vp ON vp.candidat_public_id = cp.id AND vp.statut_paiement = 'PAYÉ'
 //       WHERE cp.election_id = ? AND cp.statut = 'APPROUVE'
@@ -1044,5 +1086,10 @@ export const reviewPublicCandidature = async (req, res) => {
 //     res.status(500).json({ error: err.message });
 //   }
 // };
+
+
+
+
+
 
 
